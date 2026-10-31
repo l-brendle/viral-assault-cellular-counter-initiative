@@ -27,9 +27,12 @@ function resize() {
   canvas.style.width = Math.floor(VIEW_W * s) + 'px'; canvas.style.height = Math.floor(VIEW_H * s) + 'px';
   ctx.imageSmoothingEnabled = false;
 }
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+let touchUI = isTouch;       // show touch hints + on-screen controls
 function toView(e) {
   const r = canvas.getBoundingClientRect();
-  mouse.sx = (e.clientX - r.left) / r.width * VIEW_W; mouse.sy = (e.clientY - r.top) / r.height * VIEW_H; mouse.moved = true;
+  mouse.sx = (e.clientX - r.left) / r.width * VIEW_W; mouse.sy = (e.clientY - r.top) / r.height * VIEW_H;
+  if (e.pointerType === 'mouse') mouse.moved = true;   // touches must not hijack the mouse aim
 }
 addEventListener('resize', resize); resize();
 
@@ -78,13 +81,67 @@ addEventListener('keydown', e => {
   initAudio(); onKey(k);
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-canvas.addEventListener('mousemove', toView);
-canvas.addEventListener('mousedown', e => {
-  initAudio(); toView(e);
+
+// floating virtual sticks: touch the left half to move, the right half to aim (auto fire)
+const touch = { move: null, aim: null };
+const STICK_R = 26;
+function stickVec(st, dead) {
+  if (!st) return null;
+  let dx = (st.x - st.ox) / STICK_R, dy = (st.y - st.oy) / STICK_R;
+  const l = Math.hypot(dx, dy);
+  if (l > 1) { dx /= l; dy /= l; }
+  return l < dead ? { x: 0, y: 0, l: 0 } : { x: dx, y: dy, l: Math.min(1, l) };
+}
+const pauseBtn = () => ({ x: VIEW_W - 18, y: 26, w: 14, h: 13 });
+const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+function doPause() { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); initAudio(); toView(e);
+  const fingers = e.pointerType !== 'mouse';
+  if (fingers) touchUI = true;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+  if (state === 'play') {
+    if (!fingers) return;
+    if (inRect(pauseBtn(), mouse.sx, mouse.sy)) { doPause(); return; }
+    const st = { id: e.pointerId, ox: mouse.sx, oy: mouse.sy, x: mouse.sx, y: mouse.sy };
+    if (mouse.sx < VIEW_W / 2) { if (!touch.move) touch.move = st; } else if (!touch.aim) touch.aim = st;
+    return;
+  }
   if (state === 'title') { const m = titleBtnAt(mouse.sx, mouse.sy); if (m) titleChoice(m); }
+  else if (state === 'lobby') lobbyTap();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) startGame(coop);
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
+  else if (state === 'paused') doPause();
 });
+canvas.addEventListener('pointermove', e => {
+  toView(e);
+  for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) { touch[k].x = mouse.sx; touch[k].y = mouse.sy; }
+});
+const endPointer = e => { for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) touch[k] = null; };
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// room-code keypad (works with touch or mouse; physical keyboard still works too)
+const CODE_KEYS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+function lobbyButtons() {
+  const c = VIEW_W / 2, out = [];
+  if (lobby.mode === 'join') {
+    for (let i = 0; i < 24; i++) out.push({ id: CODE_KEYS[i], x: c - 96 + (i % 8) * 24, y: 84 + Math.floor(i / 8) * 17, w: 22, h: 15 });
+    out.push({ id: 'DEL', x: c - 72, y: 140, w: 44, h: 15 }, { id: 'GO', x: c - 22, y: 140, w: 44, h: 15 }, { id: 'BACK', x: c + 28, y: 140, w: 44, h: 15 });
+  } else out.push({ id: 'BACK', x: c - 22, y: 196, w: 44, h: 15 });
+  return out;
+}
+function lobbyTap() { for (const b of lobbyButtons()) if (inRect(b, mouse.sx, mouse.sy)) { lobbyPress(b.id); return; } }
+function lobbyPress(id) {
+  if (id === 'BACK') netDown('');
+  else if (lobby.mode === 'join' && !net) {
+    if (id === 'DEL') lobby.code = lobby.code.slice(0, -1);
+    else if (id === 'GO') { if (lobby.code.length === 4) { lobby.msg = 'CONNECTING...'; netConnect('guest', lobby.code); } else lobby.msg = 'ENTER ALL 4 LETTERS'; }
+    else if (lobby.code.length < 4) lobby.code += id;
+  }
+}
 const isGuest = () => !!net && net.role === 'guest';
 function titleChoice(m) {
   titleMsg = '';
@@ -97,17 +154,15 @@ function pickUpgrade(i) { if (isGuest()) relay({ k: 'pick', i }); else chooseUpg
 function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
 function onKey(k) {
   if (state === 'lobby') {
-    if (k === 'escape') netDown('');
-    else if (lobby.mode === 'join' && !net) {
-      if (/^[a-z]$/.test(k) && lobby.code.length < 4) lobby.code += k.toUpperCase();
-      else if (k === 'backspace') lobby.code = lobby.code.slice(0, -1);
-      else if (k === 'enter' && lobby.code.length === 4) { lobby.msg = 'CONNECTING...'; netConnect('guest', lobby.code); }
-    }
+    if (k === 'escape') lobbyPress('BACK');
+    else if (k === 'backspace') lobbyPress('DEL');
+    else if (k === 'enter') lobbyPress('GO');
+    else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); }
   else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) startGame(coop);
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
-  else if (k === 'p' || k === 'escape') { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
+  else if (k === 'p' || k === 'escape') doPause();
 }
 function gamepads() { try { return [...navigator.getGamepads()].filter(Boolean); } catch (e) { return []; } }
 // movement + optional explicit aim for one player.
@@ -130,6 +185,11 @@ function readInput(p) {
     mx += dz(pad.axes[0] || 0); my += dz(pad.axes[1] || 0);
     const rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0);
     if (rx || ry) aim = Math.atan2(ry, rx);
+  }
+  if (touchUI && p.scheme === 0) {
+    const m = stickVec(touch.move, 0.12), a = stickVec(touch.aim, 0.3);
+    if (m) { mx += m.x; my += m.y; }
+    if (a && a.l > 0) aim = Math.atan2(a.y, a.x);
   }
   return { mx, my, aim };
 }
@@ -711,11 +771,12 @@ function render() {
   for (const p of G.parts) rect(p.x - cam.x + shx, p.y - cam.y + shy, p.sz, p.sz, p.col, clamp(p.life / 0.35, 0, 1));
 
   drawHud();
+  if (touchUI && state === 'play') drawTouch();
   if (state === 'title') drawTitle();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 5, '#fff', 3, 'c'); }
-  if (state !== 'title' && state !== 'levelup' && mouse.moved) { // crosshair (player 1 aims with the mouse)
+  if (state !== 'title' && state !== 'levelup' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) rect(mx + dx, my + dy, 1, 1, '#fff');
   }
@@ -766,6 +827,21 @@ function drawHud() {
   }
 }
 
+function drawTouch() {
+  const ring = (x, y, r, col, a) => {
+    for (let i = 0; i < 40; i++) { const t = i / 40 * 6.283; rect(x + Math.cos(t) * r, y + Math.sin(t) * r, 1, 1, col, a); }
+  };
+  for (const [k, hx, col] of [['move', 52, '#bfe8ff'], ['aim', VIEW_W - 52, '#ffc070']]) {
+    const st = touch[k];
+    if (!st) { ring(hx, VIEW_H - 52, STICK_R, col, 0.22); drawText(k === 'move' ? 'MOVE' : 'AIM', hx, VIEW_H - 54, col, 1, 'c'); continue; }
+    ring(st.ox, st.oy, STICK_R, col, 0.5);
+    const v = stickVec(st, 0);
+    rect(st.ox + v.x * STICK_R - 3, st.oy + v.y * STICK_R - 3, 7, 7, col, 0.8);
+  }
+  const b = pauseBtn();
+  rect(b.x, b.y, b.w, b.h, '#000', 0.5); rect(b.x + 4, b.y + 3, 2, 7, '#fff'); rect(b.x + 8, b.y + 3, 2, 7, '#fff');
+}
+
 const TBTN = [{ x: -98, y: 164 }, { x: 4, y: 164 }, { x: -98, y: 188 }, { x: 4, y: 188 }], TBW = 94, TBH = 20;
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
@@ -781,42 +857,48 @@ function drawTitle() {
   const bob = Math.sin(performance.now() / 200) * 2;
   ctx.drawImage(SPR.player, c - 28, 62 + bob, 32, 32); ctx.drawImage(SPR.player2, c + 0, 62 - bob, 32, 32);
   ctx.drawImage(SPR.virus.basic, c - 66, 70); ctx.drawImage(SPR.virus.brute, c + 40, 64); ctx.drawImage(SPR.virus.runner, c - 86, 88);
-  const lines = ['1 PLAYER: WASD MOVE, MOUSE AIM (AUTO FIRE)', 'LOCAL CO-OP: P1 WASD + MOUSE   P2 ARROWS + IJKL (OR GAMEPADS)',
-    'AIM AT THE GLOWING WEAK SPOT ON A VIRUS BACK TO TURN IT', 'CO-OP: ONE DISTRACTS, THE OTHER FLANKS. REVIVE EACH OTHER!',
-    'LOST ORGANS MAKE WAVES HARDER. SURVIVE 6 MINUTES'];
+  const lines = touchUI
+    ? ['TOUCH: LEFT STICK MOVES, RIGHT STICK AIMS (AUTO FIRE)', 'ONLINE CO-OP WORKS BETWEEN PHONES AND COMPUTERS']
+    : ['1 PLAYER: WASD MOVE, MOUSE AIM (AUTO FIRE)', 'LOCAL CO-OP: P1 WASD + MOUSE   P2 ARROWS + IJKL (OR GAMEPADS)'];
+  lines.push('AIM AT THE GLOWING WEAK SPOT ON A VIRUS BACK TO TURN IT', 'CO-OP: ONE DISTRACTS, THE OTHER FLANKS. REVIVE EACH OTHER!',
+    'LOST ORGANS MAKE WAVES HARDER. SURVIVE 6 MINUTES');
   lines.forEach((t, i) => drawText(t, c, 106 + i * 10, i < 2 ? '#fff' : '#ffd88a', 1, 'c'));
-  const hov = titleBtnAt(mouse.sx, mouse.sy), labels = ['[1] 1 PLAYER', '[2] LOCAL CO-OP', '[3] HOST ONLINE', '[4] JOIN ONLINE'];
+  const hov = titleBtnAt(mouse.sx, mouse.sy);
+  const labels = touchUI ? ['1 PLAYER', 'LOCAL CO-OP', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] LOCAL CO-OP', '[3] HOST ONLINE', '[4] JOIN ONLINE'];
   for (let i = 0; i < 4; i++) {
-    const b = TBTN[i], h = hov === i + 1, x = c + b.x;
+    const b = TBTN[i], h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 8, '#fff', 1, 'c');
   }
-  drawText(titleMsg || 'P PAUSES', c, 214, titleMsg ? '#ff9a9a' : '#8aa0d0', 1, 'c');
+  drawText(titleMsg || (touchUI ? '' : 'P PAUSES'), c, 214, titleMsg ? '#ff9a9a' : '#8aa0d0', 1, 'c');
 }
 function drawLobby() {
   ctx.fillStyle = '#12060b'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   for (let y = 0; y < VIEW_H; y += 64) for (let x = 0; x < VIEW_W; x += 64) ctx.drawImage(SPR.bg, x, y);
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.6);
-  const c = VIEW_W / 2;
-  drawText('ONLINE CO-OP', c, 20, '#7fe8ff', 3, 'c');
+  const c = VIEW_W / 2, hov = lobbyButtons().find(b => inRect(b, mouse.sx, mouse.sy));
+  drawText('ONLINE CO-OP', c, 12, '#7fe8ff', 3, 'c');
   if (lobby.mode === 'host') {
-    drawText('YOUR ROOM CODE', c, 62, '#bfe8ff', 1, 'c');
-    drawText(lobby.code || '....', c, 76, '#ffe070', 5, 'c');
-    drawText('YOUR FRIEND OPENS THIS PAGE, PICKS [4] JOIN ONLINE', c, 118, '#fff', 1, 'c');
-    drawText('AND TYPES THE CODE. OR SEND THEM THIS LINK:', c, 128, '#fff', 1, 'c');
-    drawText(location.host + '/?room=' + lobby.code, c, 142, '#ffd88a', 1, 'c');
+    drawText('YOUR ROOM CODE', c, 56, '#bfe8ff', 1, 'c');
+    drawText(lobby.code || '....', c, 70, '#ffe070', 5, 'c');
+    drawText('YOUR FRIEND PICKS JOIN ONLINE AND TYPES THE CODE.', c, 112, '#fff', 1, 'c');
+    drawText('OR SEND THEM THIS LINK:', c, 122, '#fff', 1, 'c');
+    drawText(location.host + '/?room=' + lobby.code, c, 136, '#ffd88a', 1, 'c');
   } else {
-    drawText('ENTER ROOM CODE', c, 62, '#bfe8ff', 1, 'c');
+    drawText('ENTER ROOM CODE', c, 34, '#bfe8ff', 1, 'c');
     for (let i = 0; i < 4; i++) {
       const x = c - 52 + i * 27;
-      rect(x - 1, 79, 26, 33, '#4aa8ff'); rect(x, 80, 24, 31, '#12204a');
-      if (lobby.code[i]) drawText(lobby.code[i], x + 12, 88, '#ffe070', 3, 'c');
+      rect(x - 1, 45, 26, 28, '#4aa8ff'); rect(x, 46, 24, 26, '#12204a');
+      if (lobby.code[i]) drawText(lobby.code[i], x + 12, 53, '#ffe070', 3, 'c');
     }
-    drawText('TYPE THE CODE FROM YOUR FRIEND, THEN PRESS ENTER', c, 124, '#fff', 1, 'c');
+  }
+  for (const b of lobbyButtons()) {
+    const h = hov === b, special = b.id.length > 1;
+    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : special ? '#ffc070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+    drawText(b.id, b.x + b.w / 2, b.y + 5, '#fff', 1, 'c');
   }
   const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
-  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, 168, /NO SUCH|FULL|LOST|LEFT/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
-  drawText('ESC: BACK', c, 200, '#8aa0d0', 1, 'c');
+  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? 168 : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
 }
 
 const CARD = { w: 92, h: 84, gap: 8, y: 92 };
@@ -1015,6 +1097,8 @@ newGame(false);
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state === 'play' && !isGuest() && (document.hidden || (isTouch && innerHeight > innerWidth))) state = 'paused';
+  if (state !== 'play' && (touch.move || touch.aim)) touch.move = touch.aim = null;
   if (isGuest()) guestTick(dt);
   else { if (state === 'play') update(dt); hostSend(dt); }
   render();

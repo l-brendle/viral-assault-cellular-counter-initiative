@@ -1,0 +1,14 @@
+{
+  "name": "VACCINE: Nano Edition",
+  "short_name": "VACCINE",
+  "description": "Viral Assault Cellular Counter-Initiative: Nano Edition",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#12060b",
+  "theme_color": "#12060b",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
