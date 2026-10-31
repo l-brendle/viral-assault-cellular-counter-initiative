@@ -92,6 +92,26 @@ function stickVec(st, dead) {
   if (l > 1) { dx /= l; dy /= l; }
   return l < dead ? { x: 0, y: 0, l: 0 } : { x: dx, y: dy, l: Math.min(1, l) };
 }
+// ---- fullscreen (hides the mobile browser's address bar). iPhone Safari has no fullscreen API for pages:
+// there the game shows a hint to add it to the home screen, where the manifest makes it fullscreen.
+const fsRoot = document.documentElement;
+const fsSupported = !!(fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const isStandalone = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || !!navigator.standalone;
+const fsAvail = () => touchUI && fsSupported && !isStandalone();
+let fsPending = null;    // touch: fullscreen may only start from pointerup (that is what counts as a user gesture)
+function setFullscreen(mode) {
+  try {
+    if (isFullscreen()) { if (mode === 'toggle') (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    const p = (fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen).call(fsRoot, { navigationUI: 'hide' });
+    if (p && p.then) p.then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); }).catch(() => {});
+  } catch (err) { /* not allowed right now */ }
+}
+function requestFs(mode, e) { if (e.pointerType === 'mouse') setFullscreen(mode); else fsPending = mode; }
+document.addEventListener('fullscreenchange', resize);
+document.addEventListener('webkitfullscreenchange', resize);
+const fsBtnPlay = () => ({ x: VIEW_W - 34, y: 26, w: 14, h: 13 });
+const fsBtnTitle = () => ({ x: VIEW_W - 54, y: 4, w: 50, h: 14 });
 const pauseBtn = () => ({ x: VIEW_W - 18, y: 26, w: 14, h: 13 });
 const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 function doPause() { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
@@ -104,11 +124,16 @@ canvas.addEventListener('pointerdown', e => {
   if (state === 'play') {
     if (!fingers) return;
     if (inRect(pauseBtn(), mouse.sx, mouse.sy)) { doPause(); return; }
+    if (fsAvail() && inRect(fsBtnPlay(), mouse.sx, mouse.sy)) { requestFs('toggle', e); return; }
     const st = { id: e.pointerId, ox: mouse.sx, oy: mouse.sy, x: mouse.sx, y: mouse.sy };
     if (mouse.sx < VIEW_W / 2) { if (!touch.move) touch.move = st; } else if (!touch.aim) touch.aim = st;
     return;
   }
-  if (state === 'title') { const m = titleBtnAt(mouse.sx, mouse.sy); if (m) titleChoice(m); }
+  if (state === 'title') {
+    if (fsAvail() && inRect(fsBtnTitle(), mouse.sx, mouse.sy)) { requestFs('toggle', e); return; }
+    const m = titleBtnAt(mouse.sx, mouse.sy);
+    if (m) { if (fingers && fsAvail()) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
+  }
   else if (state === 'lobby') lobbyTap();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) startGame(coop);
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
@@ -118,7 +143,10 @@ canvas.addEventListener('pointermove', e => {
   toView(e);
   for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) { touch[k].x = mouse.sx; touch[k].y = mouse.sy; }
 });
-const endPointer = e => { for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) touch[k] = null; };
+const endPointer = e => {
+  if (fsPending && e.pointerType !== 'mouse') { const m = fsPending; fsPending = null; setFullscreen(m); }
+  for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) touch[k] = null;
+};
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -838,6 +866,13 @@ function drawTouch() {
     const v = stickVec(st, 0);
     rect(st.ox + v.x * STICK_R - 3, st.oy + v.y * STICK_R - 3, 7, 7, col, 0.8);
   }
+  if (fsAvail()) {   // fullscreen toggle: four corner brackets
+    const f = fsBtnPlay();
+    rect(f.x, f.y, f.w, f.h, '#000', 0.5);
+    for (const [cx, cy, dx, dy] of [[3, 3, 1, 1], [10, 3, -1, 1], [3, 9, 1, -1], [10, 9, -1, -1]]) {
+      rect(f.x + cx, f.y + cy, 1, 1, '#fff'); rect(f.x + cx + dx, f.y + cy, 1, 1, '#fff'); rect(f.x + cx, f.y + cy + dy, 1, 1, '#fff');
+    }
+  }
   const b = pauseBtn();
   rect(b.x, b.y, b.w, b.h, '#000', 0.5); rect(b.x + 4, b.y + 3, 2, 7, '#fff'); rect(b.x + 8, b.y + 3, 2, 7, '#fff');
 }
@@ -870,7 +905,13 @@ function drawTitle() {
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 8, '#fff', 1, 'c');
   }
-  drawText(titleMsg || (touchUI ? '' : 'P PAUSES'), c, 214, titleMsg ? '#ff9a9a' : '#8aa0d0', 1, 'c');
+  if (fsAvail()) {
+    const f = fsBtnTitle();
+    rect(f.x - 1, f.y - 1, f.w + 2, f.h + 2, '#4aa8ff'); rect(f.x, f.y, f.w, f.h, '#12204a');
+    drawText(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN', f.x + f.w / 2, f.y + 5, '#fff', 1, 'c');
+  }
+  const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
+  drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, 214, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
 }
 function drawLobby() {
   ctx.fillStyle = '#12060b'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
