@@ -2,7 +2,7 @@
 // Tiny static file server for local development (no dependencies). Online co-op is peer-to-peer (WebRTC),
 // so production hosting (Vercel etc.) only needs to serve these static files.
 const http = require('http'), fs = require('fs'), path = require('path');
-const PORT = process.env.PORT || 8765, ROOT = __dirname;
+const PORT = process.env.PORT || 8765, ROOT = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);

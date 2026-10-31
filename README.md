@@ -11,7 +11,7 @@ npm start     # http://localhost:8765  (static file server, no dependencies)
 ```
 
 ## Deploy (Vercel)
-The game is a fully static site (`index.html`, `src/`, `vendor/`), so no backend is needed:
+The game is a fully static site (everything lives in `public/`; `vercel.json` sets it as the output directory with no build step), so no backend is needed:
 ```bash
 npx vercel --prod
 ```
