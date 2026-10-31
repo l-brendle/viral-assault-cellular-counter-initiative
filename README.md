@@ -3,7 +3,7 @@
 **V**iral **A**ssault **C**ellular **C**ounter-**I**nitiative: Nano Edition
 
 You are an immune-system fighter. Shoot viruses to damage them, but to *turn* one into an ally you must get close
-and poke its glowing weak spot with your tail (click / tap it, press Space, or use the POKE button). Defend the
+and poke its glowing weak spot with your tail (click / tap it, or press Space). Defend the
 organs, level up and survive 6 minutes. 1 player, local co-op, or online co-op (2 players, room codes).
 
 ## Controls
@@ -11,7 +11,7 @@ organs, level up and survive 6 minutes. 1 player, local co-op, or online co-op (
 |---|---|---|
 | Move | WASD (P2: arrows) | left stick |
 | Aim | mouse (P2: IJKL) | right stick |
-| Poke weak spot | click it / Space (P2: Enter) | tap it / POKE button |
+| Poke weak spot | click it / Space (P2: Enter) | tap it |
 | Toggle shooting | F or right click (P2: U) | FIRE button |
 | Pause | P / Esc | pause button |
 

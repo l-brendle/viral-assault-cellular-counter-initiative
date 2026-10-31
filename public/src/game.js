@@ -2,7 +2,7 @@
 (() => {
 // ---------------------------------------------------------------- config
 const CFG = { W: 1200, H: 900, WIN_TIME: 360, MAX_VIRUS: 220, MAX_ALLY: 40, CELL: 32 };
-const VIEW_H = 240;
+let VIEW_H = 240;   // phones render at 180 so everything appears ~33% bigger
 let VIEW_W = 427;
 
 const TYPES = {
@@ -27,7 +27,8 @@ function resize() {
   canvas.style.width = Math.floor(VIEW_W * s) + 'px'; canvas.style.height = Math.floor(VIEW_H * s) + 'px';
   ctx.imageSmoothingEnabled = false;
 }
-const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const isTouch = matchMedia('(pointer: coarse)').matches;
+if (isTouch) VIEW_H = 180;
 let touchUI = isTouch;       // show touch hints + on-screen controls
 function toView(e) {
   const r = canvas.getBoundingClientRect();
@@ -141,7 +142,6 @@ function toggleFire(idx) {   // shooting on/off, per player (once unlocked)
   sfx('fire', me.autoFire ? 600 : 300, 0.06, 'square', 0.02);
 }
 const fireBtn = () => ({ x: VIEW_W - 64, y: VIEW_H - 126, w: 40, h: 14 });
-const pokeBtn = () => ({ x: VIEW_W - 64, y: VIEW_H - 106, w: 40, h: 18 });
 const pauseBtn = () => ({ x: VIEW_W - 18, y: 26, w: 14, h: 13 });
 const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 function doPause() { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
@@ -156,7 +156,6 @@ canvas.addEventListener('pointerdown', e => {
     if (inRect(pauseBtn(), mouse.sx, mouse.sy)) { doPause(); return; }
     if (fsAvail() && inRect(fsBtnPlay(), mouse.sx, mouse.sy)) { requestFs('toggle', e); return; }
     if (S.shoot && inRect(fireBtn(), mouse.sx, mouse.sy)) { toggleFire(0); return; }
-    if (inRect(pokeBtn(), mouse.sx, mouse.sy)) { pokeNearestKey(0); return; }
     if (pokeClick(true)) return;   // a tap right on a weak spot pokes it instead of starting a stick
     const st = { id: e.pointerId, ox: mouse.sx, oy: mouse.sy, x: mouse.sx, y: mouse.sy };
     if (mouse.sx < VIEW_W / 2) { if (!touch.move) touch.move = st; } else if (!touch.aim) touch.aim = st;
@@ -191,7 +190,7 @@ function lobbyButtons() {
   if (lobby.mode === 'join') {
     for (let i = 0; i < 24; i++) out.push({ id: CODE_KEYS[i], x: c - 96 + (i % 8) * 24, y: 84 + Math.floor(i / 8) * 17, w: 22, h: 15 });
     out.push({ id: 'DEL', x: c - 72, y: 140, w: 44, h: 15 }, { id: 'GO', x: c - 22, y: 140, w: 44, h: 15 }, { id: 'BACK', x: c + 28, y: 140, w: 44, h: 15 });
-  } else out.push({ id: 'BACK', x: c - 22, y: 196, w: 44, h: 15 });
+  } else out.push({ id: 'BACK', x: c - 22, y: VIEW_H - 22, w: 44, h: 15 });
   return out;
 }
 function lobbyTap() { for (const b of lobbyButtons()) if (inRect(b, mouse.sx, mouse.sy)) { lobbyPress(b.id); return; } }
@@ -843,10 +842,11 @@ function sprite(img, x, y, w = img.width, h = img.height) {
 function weakGlow(x, y, r, a, col, big, near) {
   const wx = Math.round(x + Math.cos(a) * r - cam.x + shx), wy = Math.round(y + Math.sin(a) * r - cam.y + shy);
   const pulse = 0.6 + 0.4 * Math.sin(G.t * 8 + a * 3);
-  if (big && near) {   // in poking reach: corner brackets
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const cx = wx + sx * 5, cy = wy + sy * 5;
-      rect(Math.min(cx, cx - sx * 2), cy, 3, 1, '#fff', 0.5 + 0.5 * pulse); rect(cx, Math.min(cy, cy - sy * 2), 1, 3, '#fff', 0.5 + 0.5 * pulse);
+  if (big && near) {   // in poking reach: bright halo + spinning reticle ring around the weak spot
+    rect(wx - 6, wy - 6, 13, 13, '#ffe070', 0.3 * pulse);
+    for (let i = 0; i < 10; i++) {
+      const t = G.t * 3 + i / 10 * 6.283;
+      rect(wx + Math.cos(t) * 8 - 1, wy + Math.sin(t) * 8 - 1, 2, 2, i % 2 ? '#fff' : '#ffe070', 0.6 + 0.4 * pulse);
     }
   }
   if (big) {
@@ -901,6 +901,10 @@ function render() {
 
   // which players can poke right now (drives the weak-spot brackets)
   const pokers = (isGuest() ? [players[meIdx()]] : net ? [players[0]] : players).filter(p => p && !p.down);
+  const bodyRing = (cx, cy, r) => {
+    const n = Math.max(14, Math.round(r * 3.2)), al = 0.5 + 0.4 * Math.sin(G.t * 7);
+    for (let i = 0; i < n; i++) { const t = i / n * 6.283 + G.t; rect(cx + Math.cos(t) * r - cam.x + shx, cy + Math.sin(t) * r - cam.y + shy, 1, 1, i % 2 ? '#fff' : '#ffe070', al); }
+  };
   const nearSpot = t => { const sp = spotOf(t); return pokers.some(p => Math.hypot(sp.x - p.x, sp.y - p.y) <= reachOf()); };
 
   // gems
@@ -918,6 +922,7 @@ function render() {
     rect(o.x - 14 - cam.x + shx, o.y + 16 - cam.y + shy, 28, 4, '#000', 0.4);
     sprite(o.flash > 0 ? tinted(inf ? SPR.organInf[o.i] : SPR.organ[o.i], '#fff') : (inf ? SPR.organInf[o.i] : SPR.organ[o.i]), o.x, o.y);
     weakGlow(o.x, o.y, o.r, o.weakA, '#fff6a0', inf, inf && nearSpot(o));
+    if (inf && nearSpot(o)) bodyRing(o.x, o.y, o.r + 4);
     // hp bar
     const bxx = Math.round(o.x - 12 - cam.x + shx), byy = Math.round(o.y + 24 - cam.y + shy);
     rect(bxx - 1, byy - 1, 26, 4, '#000', 0.7);
@@ -956,6 +961,14 @@ function render() {
     }
     sprite(img, u.x, u.y, sz, sz);
     weakGlow(u.x, u.y, u.r, u.weakA, '#fff6a0', inf, inf && nearSpot(u));
+    if (inf && nearSpot(u)) bodyRing(u.x, u.y, u.r + 3);   // the whole virus pulses when you can poke it
+  }
+  for (const p of pokers) {   // the weak spot a poke would hit right now: dotted guide line + label
+    const t = pokeNearest(p);
+    if (!t) continue;
+    const sp = spotOf(t), dx = sp.x - p.x, dy = sp.y - p.y, l = Math.hypot(dx, dy) || 1;
+    for (let d = 10; d < l - 4; d += 4) rect(p.x + dx / l * d - cam.x + shx, p.y + dy / l * d - cam.y + shy, 1, 1, '#fff', 0.6);
+    drawText(touchUI ? 'TAP' : 'CLICK', sp.x - cam.x + shx, sp.y - 20 - cam.y + shy, '#ffe070', 1, 'c');
   }
   for (const u of G.units) {   // lashes on top of every body so the tip is always visible on its target
     const ut = tailOf(u);
@@ -1081,11 +1094,6 @@ function drawTouch() {
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, on ? '#7fffd0' : '#ff9a9a', 0.7); rect(b.x, b.y, b.w, b.h, '#12204a', 0.85);
     drawText(on ? 'FIRE ON' : 'FIRE OFF', b.x + b.w / 2, b.y + 5, on ? '#7fffd0' : '#ff9a9a', 1, 'c');
   }
-  {   // POKE button: pokes the nearest weak spot in reach
-    const b = pokeBtn(), me = isGuest() ? players[meIdx()] : players[0], ready = me && !me.down && pokeNearest(me);
-    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, ready ? '#ffe070' : '#4aa8ff', ready ? 1 : 0.5); rect(b.x, b.y, b.w, b.h, ready ? '#5a4a10' : '#12204a', 0.85);
-    drawText('POKE', b.x + b.w / 2, b.y + 7, ready ? '#fff' : '#9ab', 1, 'c');
-  }
   if (fsAvail()) {   // fullscreen toggle: four corner brackets
     const f = fsBtnPlay();
     rect(f.x, f.y, f.w, f.h, '#000', 0.5);
@@ -1097,31 +1105,35 @@ function drawTouch() {
   rect(b.x, b.y, b.w, b.h, '#000', 0.5); rect(b.x + 4, b.y + 3, 2, 7, '#fff'); rect(b.x + 8, b.y + 3, 2, 7, '#fff');
 }
 
-const TBTN = [{ x: -98, y: 164 }, { x: 4, y: 164 }, { x: -98, y: 188 }, { x: 4, y: 188 }], TBW = 94, TBH = 20;
+const TBW = 94, TBH = 20;
+const tbtn = i => ({ x: i % 2 ? 4 : -98, y: VIEW_H - 76 + (i >> 1) * 24 });   // 2x2 button grid anchored to the bottom
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
-  for (let i = 0; i < 4; i++) { const b = TBTN[i]; if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
+  for (let i = 0; i < 4; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
   return 0;
 }
 function drawTitle() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.55);
-  const c = VIEW_W / 2;
-  drawText('VACCINE', c, 12, '#9ae05a', 5, 'c');
-  drawText('VIRAL ASSAULT CELLULAR COUNTER-INITIATIVE', c, 42, '#bfe8ff', 1, 'c');
-  drawText('NANO EDITION', c, 52, '#ffe070', 1, 'c');
-  const bob = Math.sin(performance.now() / 200) * 2;
-  ctx.drawImage(SPR.player, c - 28, 62 + bob, 32, 32); ctx.drawImage(SPR.player2, c + 0, 62 - bob, 32, 32);
-  ctx.drawImage(SPR.virus.basic, c - 66, 70); ctx.drawImage(SPR.virus.brute, c + 40, 64); ctx.drawImage(SPR.virus.runner, c - 86, 88);
-  const lines = touchUI
-    ? ['TOUCH: LEFT STICK MOVES, RIGHT STICK AIMS, POKE BUTTON POKES', 'ONLINE CO-OP WORKS BETWEEN PHONES AND COMPUTERS']
+  const c = VIEW_W / 2, compact = VIEW_H < 220;
+  drawText('VACCINE', c, compact ? 6 : 12, '#9ae05a', compact ? 4 : 5, 'c');
+  drawText('VIRAL ASSAULT CELLULAR COUNTER-INITIATIVE', c, compact ? 28 : 42, '#bfe8ff', 1, 'c');
+  drawText('NANO EDITION', c, compact ? 38 : 52, '#ffe070', 1, 'c');
+  if (!compact) {
+    const bob = Math.sin(performance.now() / 200) * 2;
+    ctx.drawImage(SPR.player, c - 28, 62 + bob, 32, 32); ctx.drawImage(SPR.player2, c + 0, 62 - bob, 32, 32);
+    ctx.drawImage(SPR.virus.basic, c - 66, 70); ctx.drawImage(SPR.virus.brute, c + 40, 64); ctx.drawImage(SPR.virus.runner, c - 86, 88);
+  }
+  let lines = touchUI
+    ? ['TOUCH: LEFT STICK MOVES, RIGHT STICK AIMS, TAP A WEAK SPOT TO POKE', 'ONLINE CO-OP WORKS BETWEEN PHONES AND COMPUTERS']
     : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES (F: TOGGLE SHOOTING)', 'LOCAL CO-OP: P1 WASD + MOUSE   P2 ARROWS + IJKL (OR GAMEPADS)'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS THE VIRUS INTO AN ALLY. CO-OP: DISTRACT + POKE!',
     'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE 6 MINUTES');
-  lines.forEach((t, i) => drawText(t, c, 106 + i * 10, i < 2 ? '#fff' : '#ffd88a', 1, 'c'));
+  if (compact) lines = [lines[0], lines[2], lines[4]];
+  lines.forEach((t, i) => drawText(t, c, (compact ? 56 : 106) + i * 10, i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
   const labels = touchUI ? ['1 PLAYER', 'LOCAL CO-OP', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] LOCAL CO-OP', '[3] HOST ONLINE', '[4] JOIN ONLINE'];
   for (let i = 0; i < 4; i++) {
-    const b = TBTN[i], h = hov === i + 1 && !touchUI, x = c + b.x;
+    const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 8, '#fff', 1, 'c');
   }
@@ -1131,7 +1143,7 @@ function drawTitle() {
     drawText(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN', f.x + f.w / 2, f.y + 5, '#fff', 1, 'c');
   }
   const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
-  drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, 214, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
+  drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
 }
 function drawLobby() {
   ctx.fillStyle = '#12060b'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -1159,7 +1171,7 @@ function drawLobby() {
     drawText(b.id, b.x + b.w / 2, b.y + 5, '#fff', 1, 'c');
   }
   const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
-  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? 168 : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
+  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 146 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
 }
 
 const CARD = { w: 92, h: 84, gap: 8, y: 92 };
@@ -1197,7 +1209,7 @@ function drawOver() {
   const saved = organs.filter(o => o.team === 'i').length;
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], ['ORGANS SAVED', saved + '/5']]
     .forEach(([k, v], i) => { drawText(k, c - 10, 95 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, 95 + i * 11, '#fff'); });
-  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : 'CLICK TO TRY AGAIN', c, 175, '#fff', isGuest() ? 1 : 2, 'c');
+  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : 'CLICK TO TRY AGAIN', c, Math.min(175, VIEW_H - 24), '#fff', isGuest() ? 1 : 2, 'c');
 }
 
 // ---------------------------------------------------------------- online
