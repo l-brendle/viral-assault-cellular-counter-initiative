@@ -149,6 +149,28 @@ function makeBackground() {
 
   SPR.gem = fromRows(['..c..', '.cwc.', 'cwwwc', '.cwc.', '..c..'], { c: '#38b8ff', w: '#d8f4ff' });
   SPR.shot = fromRows(['.ccc.', 'cwwwc', 'cwwwc', 'cwwwc', '.ccc.'], { c: '#38b8ff', w: '#ffffff' });
+  // slime puddle: irregular green blob with bubbles
+  {
+    const w = 44, h = 32, c = mk(w, h), g = c.getContext('2d');
+    const lobes = [[22, 16, 17, 11], [11, 18, 9, 7], [33, 17, 9, 8], [20, 8, 8, 5], [26, 25, 9, 5], [8, 11, 5, 4]];
+    const inside = (x, y, k) => lobes.some(([cx, cy, rx, ry]) => ((x - cx) / (rx + k)) ** 2 + ((y - cy) / (ry + k)) ** 2 <= 1);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!inside(x + 0.5, y + 0.5, 0)) continue;
+      const edge = !inside(x + 0.5, y + 0.5, -2.2);
+      const col = edge ? '#2f6a16' : (x + y) % 7 === 0 ? '#7fcf3c' : '#4f9a24';
+      px(g, x, y, col);
+    }
+    for (const [bx, by] of [[18, 12], [27, 17], [14, 19], [23, 22]]) { px(g, bx, by, '#c8f08a', 2, 2); px(g, bx, by, '#fff', 1, 1); }
+    SPR.slime = c;
+  }
+  SPR.pill = fromRows([
+    '..oooooooo..',
+    '.orhrrwwwwo.',
+    'orrrrrwwwwwo',
+    'orrrrrwwwwwo',
+    '.orrrrwwwwo.',
+    '..oooooooo..',
+  ], { o: '#4a1020', r: '#ff5a6a', w: '#ffffff', h: '#ffc0c8' });
   SPR.bg = makeBackground();
 })();
 

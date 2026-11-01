@@ -21,6 +21,15 @@ per level), leaving you smaller until you grow back.
 
 Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
+## Infected organs fight back
+- **Lungs** lob **slime** onto the map (a marker shows where it lands). Anything that touches a puddle - you, allies or
+  viruses - is frozen in place for 3 seconds.
+- **Heart** fires **fever rays** in random directions. A striped warning lane shows where the ray will pass just before
+  it fires; anything in the beam burns.
+- Cure the organ (poke its weak spot) to stop it. Stunned organs pause their attacks.
+- **Medicine** pills appear at random. You never know what you get: antibiotic, adrenaline, vitamin C, stimulant,
+  probiotics and an XP magnet help; placebo, sedative, expired pills and growth hormone don't.
+
 ## Run locally
 ```bash
 npm start     # http://localhost:8765  (static file server, no dependencies)
