@@ -29,6 +29,7 @@ const LEVELS = {
     tune: { solo: { spawn: 0.69, swarm: 1.45, dmg: 1.45, hp: 1.2, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240],
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
+    web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
@@ -335,12 +336,7 @@ function newGame(co) {
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
   G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5) }));
-  G.edges = [];   // brain: neuron lines between the synapses (each node joins its two nearest neighbours)
-  if (lvKey === 'brain') G.fix.forEach(f => {
-    G.fix.filter(o => o !== f).sort((a, b) => dist(f, a) - dist(f, b)).slice(0, 2).forEach(o => {
-      if (!G.edges.some(([x, y]) => (x === f.i && y === o.i) || (x === o.i && y === f.i))) G.edges.push([f.i, o.i]);
-    });
-  });
+  G.edges = lvl().web || [];   // brain: neuron lanes between the synapses (decoration: they carry the data-flow pulses)
   G.sabT = 20 * ease('sab'); G.hintI = 0;
   if (lvl().intro) say(lvl().intro);
   updateCam();
@@ -1280,6 +1276,36 @@ function drawGlobs() {
   }
 }
 
+// the neuron web: every lane is a fine dotted track; when both synapses are lit, data pulses stream along it (in both directions). A dim end makes the lane flicker and the pulses fizzle out; dark ends leave only a faint ghost lane.
+function drawWeb() {
+  for (const [a, b, bend = 0] of G.edges) {
+    const A = G.fix[a], B = G.fix[b];
+    if (!A || !B) continue;
+    const l = dist(A, B), nx = -(B.y - A.y) / l, ny = (B.x - A.x) / l, n = Math.floor(l / 4);
+    const worst = Math.max(A.st, B.st), ok = worst === 0;
+    const at = (t, side) => { const o = side * 1.6 + bend * 4 * t * (1 - t); return [A.x + (B.x - A.x) * t + nx * o - cam.x + shx, A.y + (B.y - A.y) * t + ny * o - cam.y + shy]; };
+    {
+      const side = 0;
+      for (let k = 1; k < n; k++) {
+        const [x, y] = at(k / n, side);
+        if (x < -2 || y < -2 || x > VIEW_W + 2 || y > VIEW_H + 2) continue;
+        rect(x, y, 1, 1, ok ? '#7fd0ff' : worst === 1 ? '#8a78c8' : '#4a3a78', ok ? 0.5 : worst === 1 ? 0.25 + 0.25 * Math.sin(G.t * 9 + k * 0.7 + a) : 0.2);
+      }
+      if (worst < 2) for (let k = 0; k < 4; k++) {   // pulses run both ways (alternating), fizzling out part-way along a lane with a dim end
+        const back = k % 2 === 1;
+        let t = (G.t * (0.3 + 0.04 * k) + k / 4 + a * 0.13) % 1;
+        if (back) t = 1 - t;
+        if (!ok && (back ? 1 - t : t) > 0.45 + 0.2 * Math.sin(G.t * 3 + k)) continue;
+        const [x, y] = at(t, side);
+        if (x < -3 || y < -3 || x > VIEW_W + 3 || y > VIEW_H + 3) continue;
+        rect(x - 1, y - 1, 3, 3, '#e8f8ff', ok ? 0.95 : 0.6);
+        const [tx, ty] = at(clamp(t + (back ? 0.012 : -0.012), 0, 1), side);
+        rect(tx - 0.5, ty - 0.5, 2, 2, '#8ab4ff', 0.5);
+      }
+    }
+  }
+}
+
 // lightning from lit synapses: a faint charging line, then a jagged bright bolt
 function drawBolts() {
   for (const f of G.fix) {   // tiny sparks crackling around every lit synapse
@@ -1386,11 +1412,6 @@ function render() {
     } else {   // the core, beating
       const pu = beatPulse(), cx = HEART_C.x - cam.x + shx, cy = HEART_C.y - cam.y + shy;
       for (let i = 0; i < 40; i++) { const t = i / 40 * 6.283; rect(cx + Math.cos(t) * (30 + 6 * pu), cy + Math.sin(t) * (30 + 6 * pu), 2, 2, '#ff6070', 0.25 + 0.3 * pu); }
-    }
-    if (G.edges.length) for (const [a, b] of G.edges) {   // neuron lines: bright with moving pulses when both ends are lit
-      const A = G.fix[a], B = G.fix[b], ok = A.st === 0 && B.st === 0, l = dist(A, B), n = Math.floor(l / 4);
-      for (let k = 1; k < n; k++) { const t = k / n; rect(A.x + (B.x - A.x) * t - cam.x + shx, A.y + (B.y - A.y) * t - cam.y + shy, 1, 1, ok ? '#7fd0ff' : '#6a4a98', ok ? 0.45 : 0.22 + 0.2 * Math.sin(G.t * 9 + k)); }
-      if (ok) for (let k = 0; k < 2; k++) { const t = (G.t * 0.35 + k / 2) % 1; rect(A.x + (B.x - A.x) * t - cam.x + shx - 1, A.y + (B.y - A.y) * t - cam.y + shy - 1, 3, 3, '#e8f8ff', 0.9); }
     }
     const br = breathY(), bp = beatPulse();
     for (const f of G.fix) {
@@ -1556,7 +1577,7 @@ function render() {
     }
   }
   drawGlobs();
-  if (lvKey === 'brain') { drawDarkness(); drawBolts(); }
+  if (lvKey === 'brain') { drawDarkness(); drawWeb(); drawBolts(); }
   if (lvKey === 'lung') {
     const br = breathY();
     if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
