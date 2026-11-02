@@ -62,6 +62,7 @@ const FIXNAMES = { gland: ['SEALED', 'LEAKING', 'ERODED'], vessel: ['OPEN', 'NAR
 const LEVEL_KEYS = Object.keys(LEVELS);
 const CAMPAIGN = ['brain', 'lung', 'heart', 'stomach', 'blood'];            // the campaign plays these in order, upgrades carry over
 const LEVEL_SEL = ['campaign', 'brain', 'lung', 'heart', 'stomach', 'blood', 'classic'];
+let playMode = 1;   // 1 = single player, 2 = hosting online: both pick a level next
 let lvSel = 'campaign';   // what the title screen has selected
 let lvKey = 'brain';      // the level that is actually loaded
 let camp = null;          // campaign progress while playing it: { i, S0 } (S0 = upgrades at the start of this level)
@@ -259,8 +260,9 @@ canvas.addEventListener('pointerdown', e => {
   if (state === 'title') {
     if (fsAvail() && inRect(fsBtnTitle(), mouse.sx, mouse.sy)) { requestFs('toggle', e); return; }
     const m = titleBtnAt(mouse.sx, mouse.sy);
-    if (m) { if (fingers && fsAvail() && m < 5) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
+    if (m) { if (fingers && fsAvail() && m < 4) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
   }
+  else if (state === 'levels') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const t = levelTiles().find(t => inRect(t, mouse.sx, mouse.sy)); if (t) pickLevel(t.key); } }
   else if (state === 'lobby') lobbyTap();
   else if (state === 'powers') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
@@ -303,11 +305,14 @@ const isGuest = () => !!net && net.role === 'guest';
 function titleChoice(m) {
   titleMsg = '';
   if (m < 5) camp = null;   // a new run from the title always starts the campaign from the beginning
-  if (m === 1) startGame(false);
-  else if (m === 2) { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
+  if (m === 1 || m === 2) { playMode = m; state = 'levels'; }
   else if (m === 3) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
   else if (m === 6) state = 'powers';
-  else if (m === 5) { lvSel = LEVEL_SEL[(LEVEL_SEL.indexOf(lvSel) + 1) % LEVEL_SEL.length]; lvKey = lvSel === 'campaign' ? CAMPAIGN[0] : lvSel; camp = null; newGame(false); }   // cycle campaign / levels (the title shows it behind the menu)
+}
+function pickLevel(key) {
+  lvSel = key; lvKey = key === 'campaign' ? CAMPAIGN[0] : key; camp = null; newGame(false);
+  if (playMode === 1) startGame(false);
+  else { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
 }
 function pickUpgrade(i) { if (isGuest()) relay({ k: 'pick', i }); else chooseUpgrade(i); }
 function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
@@ -318,7 +323,8 @@ function onKey(k) {
     else if (k === 'enter') lobbyPress('GO');
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
-  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); else if (k === 'p') titleChoice(6); }
+  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); }
+  else if (state === 'levels') { if (k === 'escape' || k === 'backspace') state = 'title'; else if (k >= '1' && k <= '7') pickLevel(LEVEL_SEL[+k - 1]); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
   else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) overContinue();
@@ -1796,7 +1802,7 @@ function render() {
   if (state === 'lobby') { drawLobby(); return; }
   // camera
   updateCam();
-  if (state === 'title') { cam.x = CFG.W / 2 - VIEW_W / 2 | 0; cam.y = 330; }
+  if (state === 'title' || state === 'levels') { cam.x = CFG.W / 2 - VIEW_W / 2 | 0; cam.y = 330; }
   shx = G.shake > 0.5 ? Math.round(rand(-1, 1) * G.shake) : 0; shy = G.shake > 0.5 ? Math.round(rand(-1, 1) * G.shake) : 0;
 
   ctx.fillStyle = lvl().clear; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -2081,17 +2087,22 @@ function render() {
   if (touchUI && state === 'play') drawTouch();
   if (state === 'title') drawTitle();
   if (state === 'powers') drawPowersMenu();
+  if (state === 'levels') drawLevelSelect();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
-    for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) rect(mx + dx, my + dy, 1, 1, '#fff');
+    // bright arms with a dark outline so it reads on every background; the centre dot marks the exact aim point
+    for (const [dx, dy, w, h] of [[-8, 0, 5, 1], [4, 0, 5, 1], [0, -8, 1, 5], [0, 4, 1, 5]]) { rect(mx + dx - 1, my + dy - 1, w + 2, h + 2, '#000', 0.85); }
+    rect(mx - 2, my - 2, 5, 5, '#000', 0.85);
+    for (const [dx, dy, w, h] of [[-8, 0, 5, 1], [4, 0, 5, 1], [0, -8, 1, 5], [0, 4, 1, 5]]) rect(mx + dx, my + dy, w, h, '#fff060');
+    rect(mx - 1, my - 1, 3, 3, '#fff060'); rect(mx, my, 1, 1, '#000');
   }
 }
 
 function drawHud() {
-  if (state === 'title') return;
+  if (state === 'title' || state === 'levels') return;
   const n = players.length;
   players.forEach((p, i) => {
     const y = 4 + i * 17, label = n > 1 ? 'P' + (i + 1) + ' INFECTION' : 'INFECTION';
@@ -2228,13 +2239,11 @@ function drawTouch() {
 
 const TBW = 94, TBH = 20;
 const tbtn = i => ({ x: i ? (i === 1 ? -98 : 4) : -47, y: VIEW_H - 76 + (i ? 1 : 0) * 24 });   // 1 PLAYER on top, the two online buttons below, anchored to the bottom
-const lvBtn = () => ({ x: VIEW_W / 2 - 75, y: VIEW_H - 88, w: 150, h: 11 });
 const powBtn = () => ({ x: 4, y: 4, w: 66, h: 14 });
 const powBackBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 24, w: 80, h: 14 });
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
   if (inRect(powBtn(), mx, my)) return 6;
-  if (inRect(lvBtn(), mx, my)) return 5;
   for (let i = 0; i < 3; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
   return 0;
 }
@@ -2253,16 +2262,11 @@ function drawTitle() {
     ? ['LEFT STICK MOVES, RIGHT STICK AIMS', 'ONLINE CO-OP WORKS BETWEEN PHONES AND PCS']
     : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'ONLINE CO-OP: HOST OR JOIN A ROOM WITH A 4-LETTER CODE'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS VIRUSES INTO ALLIES',
-    lvSel === 'campaign' ? 'CAMPAIGN: 5 ORGANS. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
+    'PLAY THE 5-ORGAN CAMPAIGN OR ANY SINGLE LEVEL. SHOOTING IS A LEVEL-UP UNLOCK');
   if (compact) lines = [lines[0], lines[2], lines[4]];
   lines.forEach((t, i) => drawText(t, c, (compact ? 52 : 100) + i * (compact ? 10 : 9), i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
   const labels = touchUI ? ['1 PLAYER', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] HOST ONLINE', '[3] JOIN ONLINE'];
-  {
-    const b = lvBtn(), h = hov === 5 && !touchUI;
-    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#7a6a30'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
-    drawText('LEVEL: ' + (lvSel === 'campaign' ? 'CAMPAIGN' : lvl().name) + (touchUI ? '' : ' [L]'), c, b.y + 2, '#ffe070', 1, 'c');
-  }
   for (let i = 0; i < 3; i++) {
     const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
@@ -2280,6 +2284,50 @@ function drawTitle() {
   }
   const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
   drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
+}
+// level select: a campaign tile (the five organs in order) on top, one tile per single level below
+function levelTiles() {
+  const compact = VIEW_H < 220, c = VIEW_W / 2, gap = 6, tw = 96, th = compact ? 44 : 56, ch = compact ? 32 : 40;
+  const top = compact ? 22 : 34, W = tw * 3 + gap * 2, out = [{ key: 'campaign', x: c - W / 2, y: top, w: W, h: ch }];
+  LEVEL_SEL.slice(1).forEach((key, i) => out.push({ key, x: c - W / 2 + (i % 3) * (tw + gap), y: top + ch + gap + Math.floor(i / 3) * (th + gap), w: tw, h: th }));
+  return out;
+}
+function tileBg(key, x, y, w, h) {
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  const img = SPR[LEVELS[key].bg];
+  for (let yy = y; yy < y + h; yy += 64) for (let xx = x; xx < x + w; xx += 64) ctx.drawImage(img, xx, yy);
+  ctx.restore();
+}
+function drawLevelSelect() {
+  rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
+  const c = VIEW_W / 2, compact = VIEW_H < 220;
+  drawText(playMode === 2 ? 'CHOOSE A LEVEL TO HOST' : 'CHOOSE A LEVEL', c, compact ? 4 : 8, '#ffe070', compact ? 2 : 3, 'c');
+  const hov = !touchUI && levelTiles().find(t => inRect(t, mouse.sx, mouse.sy));
+  levelTiles().forEach((t, i) => {
+    const h = hov && hov.key === t.key, camp = t.key === 'campaign';
+    rect(t.x - 1, t.y - 1, t.w + 2, t.h + 2, h ? '#ffe070' : camp ? '#ffd24a' : LEVELS[t.key].edge);
+    if (camp) {
+      rect(t.x, t.y, t.w, t.h, '#12102a');
+      const n = CAMPAIGN.length, sz = compact ? 16 : 20, step = (t.w - 12) / n, iy = t.y + (compact ? 12 : 16);
+      CAMPAIGN.forEach((k, j) => {
+        const ix = t.x + 6 + j * step + (step - sz) / 2;
+        ctx.save(); ctx.beginPath(); ctx.rect(ix, iy, sz, sz); ctx.clip(); ctx.drawImage(SPR[LEVELS[k].bg], ix, iy); ctx.restore();
+        rect(ix - 1, iy - 1, sz + 2, 1, LEVELS[k].edge); rect(ix - 1, iy + sz, sz + 2, 1, LEVELS[k].edge); rect(ix - 1, iy, 1, sz, LEVELS[k].edge); rect(ix + sz, iy, 1, sz, LEVELS[k].edge);
+        if (j < n - 1) drawText('>', ix + sz + (step - sz) / 2 - 1, iy + sz / 2 - 3, '#ffd24a', 1, 'c');
+      });
+      drawText((touchUI ? '' : '[1] ') + 'CAMPAIGN', t.x + 5, t.y + 3, '#ffd24a', 1, 'l');
+      drawText('UPGRADES CARRY OVER', t.x + t.w - 5, t.y + 3, '#bfe8ff', 1, 'r');
+    } else {
+      tileBg(t.key, t.x, t.y, t.w, t.h);
+      rect(t.x, t.y, t.w, t.h, '#000', h ? 0.2 : 0.45);
+      rect(t.x, t.y + t.h - 21, t.w, 21, '#000', 0.7);
+      drawText((touchUI ? '' : '[' + (i + 1) + '] ') + LEVELS[t.key].name, t.x + t.w / 2, t.y + t.h - 18, '#fff', 1, 'c');
+      drawText(Math.round(LEVELS[t.key].time / 60) + ' MIN', t.x + t.w / 2, t.y + t.h - 9, LEVELS[t.key].edge, 1, 'c');
+    }
+  });
+  const b = powBackBtn(), h = !touchUI && inRect(b, mouse.sx, mouse.sy);
+  rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+  drawText('BACK', b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
 }
 function drawPowersMenu() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
