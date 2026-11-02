@@ -202,6 +202,7 @@ canvas.addEventListener('pointerdown', e => {
     if (m) { if (fingers && fsAvail() && m < 5) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
   }
   else if (state === 'lobby') lobbyTap();
+  else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
   else if (state === 'paused') doPause();
@@ -257,6 +258,7 @@ function onKey(k) {
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); }
+  else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
   else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) overContinue();
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
   else if (state === 'play' && k === ' ') pokeNearestKey(0);
@@ -350,6 +352,8 @@ function startGame(co) {
   if (net && net.role === 'host') players[1].remote = true;
   state = 'play'; sfx('start', 300, 0.25, 'square', 0.04, 400);
 }
+const menuBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 19, w: 80, h: 14 });
+function toMenu() { camp = null; netDown(''); }   // back to the title screen (also leaves an online game)
 // after a round: campaign win -> next organ (carrying the upgrades), loss -> retry that organ, final win -> start over
 function overContinue() {
   if (camp && G.result === 'win') { if (camp.i < CAMPAIGN.length - 1) { camp.i++; camp.S0 = JSON.parse(JSON.stringify(S)); } else camp = null; }
@@ -1272,7 +1276,10 @@ function drawDarkness() {
   ctx.drawImage(darkC, 0, 0);
 }
 
+let curStyle = '';
 function render() {
+  const cur = state === 'play' ? 'none' : 'default';   // in play the aim crosshair replaces the pointer; every menu / pause / end screen shows the real mouse
+  if (cur !== curStyle) { curStyle = cur; canvas.style.cursor = cur; }
   if (state === 'lobby') { drawLobby(); return; }
   // camera
   updateCam();
@@ -1517,7 +1524,7 @@ function render() {
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 5, '#fff', 3, 'c'); }
-  if (state !== 'title' && state !== 'levelup' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
+  if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) rect(mx + dx, my + dy, 1, 1, '#fff');
   }
@@ -1739,8 +1746,11 @@ function drawOver() {
   if (camp) drawText(more ? 'NEXT: ' + LEVELS[CAMPAIGN[camp.i + 1]].name + '. UPGRADES CARRY OVER' : win ? 'CAMPAIGN COMPLETE!' : 'CAMPAIGN ' + (camp.i + 1) + '/' + CAMPAIGN.length + ': ' + lvl().name, c, 80, win ? '#ffe070' : '#ffd88a', 1, 'c');
   const saved = organs.filter(o => o.team === 'i').length;
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
-    .forEach(([k, v], i) => { drawText(k, c - 10, 98 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, 98 + i * 11, '#fff'); });
-  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, Math.min(175, VIEW_H - 24), '#fff', isGuest() ? 1 : 2, 'c');
+    .forEach(([k, v], i) => { const y0 = VIEW_H < 220 ? 92 : 98; drawText(k, c - 10, y0 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, y0 + i * 11, '#fff'); });
+  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, VIEW_H - 36, '#fff', isGuest() ? 1 : 2, 'c');
+  const b = menuBtn(), hov = !touchUI && inRect(b, mouse.sx, mouse.sy);
+  rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, hov ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, hov ? '#243c78' : '#12204a');
+  drawText(touchUI ? 'MENU' : 'MENU [M]', c, b.y + 5, '#fff', 1, 'c');
 }
 
 // ---------------------------------------------------------------- online
