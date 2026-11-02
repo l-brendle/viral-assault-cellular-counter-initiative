@@ -323,7 +323,7 @@ function addUnit(team, type, x, y) {
   const T = TYPES[type], hpm = team === 'v' ? 1 + G.t / 300 : 1;
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
-    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: rand(5, 14), tail: null,
+    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: rand(1.5, 5), tail: null,
     tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0 };
   G.units.push(u);
   return u;
@@ -375,7 +375,7 @@ function convert(u) {
     u.team = 'v';
     burst(u.x, u.y, '#9ae05a', 14, 70); sfx('inf', 300, 0.18, 'sawtooth', 0.03, -200);
   }
-  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = rand(10, 14); u.tail = null;
+  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = rand(4, 6); u.tail = null;
 }
 function convertOrgan(o) {
   o.team = o.team === 'i' ? 'v' : 'i';
@@ -529,7 +529,7 @@ function doSplit(p, lv) {
   for (let i = 0; i < n; i++) {
     const a = p.splitBase + i / lv * 6.283;
     const c = addUnit('i', 'basic', p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6);
-    c.kx = Math.cos(a) * 130; c.ky = Math.sin(a) * 130; c.kickT = 0.4; c.convCd = rand(8, 12);
+    c.kx = Math.cos(a) * 130; c.ky = Math.sin(a) * 130; c.kickT = 0.4; c.convCd = rand(3, 6);
   }
   burst(p.x, p.y, '#8fd0ff', 20, 100); G.shake = Math.max(G.shake, 2);
   tip(p.x, p.y - 22, 'SPLIT!', '#8fd0ff'); sfx('split', 220, 0.3, 'sine', 0.05, 500);
@@ -673,7 +673,7 @@ function strikeOrgan(a, o) { a.atkCd = 0.8; hurtOrgan(o, a.dmg * 0.4); }
 
 // Units (viruses AND allies) actively try to turn the other side: when their cooldown is up they lash their tail at the
 // closest enemy weak spot in reach. The cooldown keeps it from snowballing. Worn-down ("exposed") organs skip the wait.
-const UNIT_REACH = 34;
+const UNIT_REACH = 46;
 function lashTarget(u, organsOnly) {
   const foe = u.team === 'v' ? 'i' : 'v';
   let best = null, bd = UNIT_REACH;
@@ -818,9 +818,9 @@ function update(dt) {
     u.convCd -= dt;
     if (!u.tail && (u.convCd <= 0 || u.team === 'v')) {
       const t = lashTarget(u, u.convCd > 0);
-      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = rand(14, 20); }
+      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = rand(5, 8); }
     }
-    if (u.tail) { tailStep(u, dt, 44, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
+    if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
     if (u.stuckT > 0) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime
     const kk = Math.min(1, 6 * dt);
     u.vx += (dx * u.speed - u.vx) * kk; u.vy += (dy * u.speed - u.vy) * kk;
@@ -1391,6 +1391,12 @@ const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
 // The room code is the host's peer id ("vaccine-nano-ABCD").
 const ROOM_PREFIX = 'vaccine-nano-', CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+// Players on different networks need STUN, and often a TURN relay, to reach each other. Several free servers, so one being down is fine.
+const PEER_OPTS = { config: { iceServers: [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+], sdpSemantics: 'unified-plan' } };
 function relay(d) { if (net && net.conn && net.conn.open) net.conn.send(d); }
 function netConnect(role, code) {
   if (typeof Peer === 'undefined') { lobby.msg = 'NETWORK LIBRARY MISSING'; return; }
@@ -1403,9 +1409,9 @@ function netConnect(role, code) {
   if (role === 'host') {
     const openRoom = () => {
       const c = Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
-      const peer = me.peer = new Peer(ROOM_PREFIX + c);
+      const peer = me.peer = new Peer(ROOM_PREFIX + c, PEER_OPTS);
       peer.on('open', () => { if (net === me) { lobby.code = c; lobby.msg = 'WAITING FOR PLAYER 2'; } });
-      peer.on('error', e => { if (e.type === 'unavailable-id' && net === me) { peer.destroy(); openRoom(); } else fail('CONNECTION ERROR'); });
+      peer.on('error', e => { if (e.type === 'unavailable-id' && net === me) { peer.destroy(); openRoom(); } else fail('ERROR: ' + String(e.type || 'CONNECTION').toUpperCase().replace(/-/g, ' ')); });
       peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { /* ignore */ } });
       peer.on('connection', conn => {
         if (me.conn && me.conn.open) { conn.on('open', () => { conn.send({ k: 'full' }); setTimeout(() => conn.close(), 300); }); return; }
@@ -1417,13 +1423,14 @@ function netConnect(role, code) {
     };
     openRoom();
   } else {
-    const peer = me.peer = new Peer();
-    peer.on('error', e => fail(e.type === 'peer-unavailable' ? 'NO SUCH ROOM' : 'CONNECTION ERROR'));
+    const peer = me.peer = new Peer(undefined, PEER_OPTS);
+    peer.on('error', e => fail(e.type === 'peer-unavailable' ? 'NO SUCH ROOM' : 'ERROR: ' + String(e.type || 'CONNECTION').toUpperCase().replace(/-/g, ' ')));
     peer.on('open', () => {
       const conn = me.conn = peer.connect(ROOM_PREFIX + code, { serialization: 'json' });
-      const timer = setTimeout(() => { if (!conn.open) fail('COULD NOT CONNECT'); }, 12000);
+      const timer = setTimeout(() => { if (!conn.open) fail('COULD NOT CONNECT. TRY AGAIN'); }, 20000);
       conn.on('open', () => { clearTimeout(timer); handleNet({ t: 'joined' }); });
       conn.on('data', d => { if (d && d.k === 'full') fail('ROOM IS FULL'); else handleNet({ t: 'relay', d }); });
+      conn.on('error', () => fail('COULD NOT CONNECT. TRY AGAIN'));
       conn.on('close', () => { if (net === me) handleNet({ t: 'left' }); });
     });
   }
