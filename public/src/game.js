@@ -111,10 +111,10 @@ function angDiff(a, b) {
 let AC = null, AU = null; const sfxT = {};   // AC: gameplay sounds (frozen while the game is held), AU: sounds of the pause screens themselves
 const UI_SFX = new Set(['lvl', 'pick', 'end', 'start']);
 let uiSfx = false;   // set while the Man Flu scene runs, so its own sounds are not frozen with the rest
-function mkAudio() { try { return new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+function mkAudio() { try { return new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' }); } catch (e) { return null; } }
 function initAudio() {
   if (!AC) { AC = mkAudio(); AU = mkAudio(); }
-  for (const c of [AC, AU]) if (c && c.state === 'suspended') c.resume();
+  for (const c of [AC, AU]) if (c && c.state !== 'running') c.resume();
 }
 const gameHeld = () => state === 'paused' || state === 'levelup' || state === 'over' || !!G.cine;
 let acHeld = false;
@@ -146,11 +146,25 @@ function syncAudio() {
         rest.push({ f: f2, d: r, type: v.type, vol: v.vol * Math.pow(0.0001 / v.vol, k), slide: v.slide ? (v.f + v.slide) - f2 : 0 });
       }
     }
-    live = [];
+    AD.held++; AD.dropped += live.length; live = [];
   } else {
     for (const r of rest) voice(AC, r.f, r.d, r.type, r.vol, r.slide, true);
-    rest = [];
+    AD.resumed += rest.length; rest = [];
   }
+}
+// F2 shows what the audio is doing, to debug sound problems on a device
+const AD = { on: false, gap: 0, gapMax: 0, n: 0, held: 0, resumed: 0, dropped: 0, sfx: 0 };
+function audioDiag() {
+  const c = AC;
+  if (!AD.on || !c) return;
+  const L = [
+    'AUDIO ' + c.state + ' T ' + c.currentTime.toFixed(2),
+    'LATENCY OUT ' + Math.round((c.outputLatency || 0) * 1000) + ' BASE ' + Math.round(c.baseLatency * 1000) + ' MS',
+    'VOICES ' + live.length + ' STORED ' + rest.length + (acHeld ? ' HELD' : ''),
+    'SFX/S ' + AD.n + ' HOLDS ' + AD.held + ' REPLAYED ' + AD.resumed + ' CUT ' + AD.dropped,
+    'FRAME MAX ' + AD.gapMax + ' MS',
+  ];
+  L.forEach((t, i) => drawText(t, VIEW_W - 4, 60 + i * 9, '#7fffd0', 1, 'r'));
 }
 function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   if (evq) evq.push(['s', key, f, d, type, vol, slide]);
@@ -161,6 +175,7 @@ function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   if (sfxT[key] && t - sfxT[key] < 0.04) return;
   sfxT[key] = t;
   voice(ctx, f, d, type, vol, slide, !own);
+  AD.sfx++;
 }
 
 // ---------------------------------------------------------------- input
@@ -175,6 +190,7 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   keys[k] = true;
   if (k.startsWith('arrow') || k === ' ') e.preventDefault();
+  if (k === 'f2') AD.on = !AD.on;
   initAudio(); onKey(k);
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2091,6 +2107,7 @@ function render() {
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
+  audioDiag();
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     // bright arms with a dark outline so it reads on every background; the centre dot marks the exact aim point
@@ -2644,8 +2661,11 @@ function frame(now) {
   if (state === 'play' && !isGuest() && (document.hidden || (isTouch && innerHeight > innerWidth))) state = 'paused';
   if (state !== 'play' && (touch.move || touch.aim)) touch.move = touch.aim = null;
   syncAudio();
+  AD.frames = (AD.frames || 0) + 1;
+  if (AD.frames % 60 === 0) { AD.n = AD.sfx; AD.sfx = 0; AD.gapMax = 0; }
+  AD.gapMax = Math.max(AD.gapMax, Math.round(now - (AD.prev || now))); AD.prev = now;
   if (isGuest()) guestTick(dt);
-  else { if (state === 'play') update(dt); hostSend(dt); }
+  else { if (state === 'play') update(dt); syncAudio(); hostSend(dt); }
   render();
   requestAnimationFrame(frame);
 }
