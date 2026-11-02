@@ -12,7 +12,7 @@ const TYPES = {
   slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
   ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
   spark: { r: 4, hp: 8, speed: 52, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#7aa8ff' },   // brain level: spawned by sick synapses
-  manflu: { r: 22, hp: 500, speed: 24, dmg: 10, arc: 0.4, xp: 14, ally: 40, col: '#a8c83a' },   // brain level boss: harmless in the end, if you let it
+  manflu: { r: 22, hp: 900, speed: 30, dmg: 11, arc: 0.4, xp: 14, ally: 40, col: '#a8c83a' },   // brain level boss: harmless in the end, if you let it
   saboteur: { r: 5, hp: 30, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -975,6 +975,7 @@ function lashTarget(u, organsOnly) {
 }
 
 function update(dt) {
+  if (G.cine) { cineStep(dt); return; }   // the Man Flu scene: the rest of the game is paused
   G.t += dt;
   if (G.t >= lvl().time) { endGame(true, lvl().win); return; }
   G.msgT -= dt; G.shake = Math.max(0, G.shake - 20 * dt);
@@ -1016,9 +1017,8 @@ function update(dt) {
     slimeStick(p, dt, true);
     if (p.hitT > 2) p.infection = Math.max(0, p.infection - S.regen * 1.2 * oxy() * dt);   // you only shake it off after 2s without a hit
     for (const o of organs) if (o.team === 'i' && Math.hypot(p.x - o.x, p.y - o.y) < 60) p.infection = Math.max(0, p.infection - 2.5 * dt);
-    if (p.infection >= 100 && G.units.some(u => u.morph && !u.dead)) p.infection = 99;   // nothing can finish you off while Man Flu changes
-    if (p.infection >= 100 && fluCatch(p)) p.infection = 0;   // the plot twist: Man Flu was only ever looking for a friend
-    if (p.infection >= 100) {
+    if (p.infection >= 100 && startCine(p)) p.infection = 100;   // the plot twist: with Man Flu on screen, a full infection starts its scene instead of ending the run
+    else if (p.infection >= 100) {
       p.infection = 100; p.down = true; p.reviveT = 0; p.vx = p.vy = 0;
       burst(p.x, p.y, '#9ae05a', 20, 80); G.shake = 4; sfx('inf', 200, 0.4, 'sawtooth', 0.04, -120);
       if (players.length > 1) say('P' + (p.idx + 1) + ' INFECTED! REVIVE THEM');
@@ -1159,7 +1159,7 @@ function update(dt) {
       const push = (u.r + ppr - dp) * 0.5 / dp;
       u.x -= dpx * push; u.y -= dpy * push;
       if (u.team === 'v' && u.atkCd <= 0 && !u.morph) {
-        u.atkCd = 1.1; if (u.boss) p.fluT = G.t;
+        u.atkCd = 1.1;
         p.infection += u.dmg * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1);   p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2);   // viruses hit harder as the infection matures
         p.vx += dpx / dp * 40; p.vy += dpy / dp * 40;
         sfx('hurt', 150, 0.1, 'sawtooth', 0.03, -60);
@@ -1304,12 +1304,66 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
 // A big scary boss that you can shoot down like anything else. But when it makes your infection reach 100% nothing bad happens:
 // it blinks, shrinks and turns into a small pet that follows you through all later levels.
 const MORPH_T = 3;
-function fluCatch(p) {
-  const fl = G.units.find(u => u.boss && !u.dead && !u.morph);
-  if (!fl || G.t - (p.fluT == null ? -9 : p.fluT) > 3) return false;
-  fl.morph = { t: 0 }; fl.hp = fl.maxHp; G.fp = []; G.shake = Math.max(G.shake, 3);
-  say('MAN FLU IS ... CHANGING?'); sfx('charge', 200, MORPH_T, 'sine', 0.03, 300);
+const CINE_T = 4;   // seconds: dash in, slow-motion poke, transformation, pet appears
+function startCine(p) {
+  const fl = G.units.find(u => u.boss && !u.dead);
+  if (!fl || G.cine) return false;
+  const sx = fl.x - cam.x, sy = fl.y - cam.y;
+  if (sx < -20 || sy < -20 || sx > VIEW_W + 20 || sy > VIEW_H + 20) return false;   // only when it is on screen
+  G.fp = []; G.cine = { t: 0, p, x0: fl.x, y0: fl.y, px: p.x, py: p.y, hit: false, done: false };
+  fl.tgt = null; fl.vx = fl.vy = 0; p.vx = p.vy = 0;
+  sfx('charge', 120, 1.5, 'sine', 0.04, 200);
   return true;
+}
+function cineStep(dt) {
+  const c = G.cine, u = G.units.find(x => x.boss && !x.dead), p = c.p;
+  c.t += dt;
+  p.flash -= dt;   // the rest of the world stands still, but sparks, tips and hit flashes keep playing
+  for (const q of G.parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.92; q.vy *= 0.92; q.life -= dt; }
+  G.parts = G.parts.filter(q => q.life > 0);
+  for (const t of G.tips) t.t -= dt;
+  G.tips = G.tips.filter(t => t.t > 0);
+  if (u && !c.done) {
+    const dx = p.x - c.x0, dy = p.y - c.y0, d = Math.hypot(dx, dy) || 1, stand = u.r + 16;
+    if (c.t < 0.5) {   // dash up next to the player
+      const k = 1 - (1 - c.t / 0.5) ** 2;
+      u.x = c.x0 + (dx - dx / d * stand) * k; u.y = c.y0 + (dy - dy / d * stand) * k;
+    } else if (c.t < 1.9) {   // the poke, in slow motion
+      u.tail = { ref: { x: c.px, y: c.py, r: 0, weakA: 0 }, t: (c.t - 0.5) / 1.4 * TAIL_END, hit: true };
+      if (c.t >= 1.18 && !c.hit) { c.hit = true; p.flash = 0.5; burst(p.x, p.y, '#c8f060', 12, 40); sfx('hurt', 150, 0.3, 'sawtooth', 0.04, -60); tip(p.x, p.y - 16, 'POKE!', '#c8f060'); }
+      if (c.hit) { const kb = Math.min(1, (c.t - 1.18) / 0.7) * 8; p.x = c.px - dx / d * kb; p.y = c.py - dy / d * kb; }
+    } else {   // blinking and shrinking into the pet
+      u.tail = null; u.morph = { t: Math.min(1, (c.t - 1.9) / 1.5) * MORPH_T };
+    }
+  }
+  if (c.t >= 3.4 && !c.done) {
+    c.done = true;
+    if (u) { burst(u.x, u.y, '#ff9ac8', 24, 70); G.pet = { x: u.x, y: u.y, vx: 0, vy: 0 }; G.units = G.units.filter(x => x !== u); }
+    sfx('conv', 600, 0.4, 'sine', 0.05, 500); G.shake = 0;
+    say(hasPet ? 'MAN FLU IS YOUR FRIEND AGAIN!' : 'MAN FLU IS NOW YOUR PET! IT FOLLOWS YOU FROM NOW ON'); G.msgT = 6;
+    hasPet = true; try { localStorage.setItem('vaccine.pet', '1'); } catch (e) { /* private mode */ }
+    p.infection = 0; p.hitT = 9;
+  }
+  if (c.t >= CINE_T) G.cine = null;
+}
+// everything is darkened except the players, Man Flu and the pet
+let spotC = null;
+function drawCineSpot() {
+  const c = G.cine, a = Math.min(1, c.t / 0.35, Math.max(0, (CINE_T - c.t) / 0.35));
+  if (a <= 0) return;
+  if (!spotC) spotC = document.createElement('canvas');
+  if (spotC.width !== VIEW_W || spotC.height !== VIEW_H) { spotC.width = VIEW_W; spotC.height = VIEW_H; }
+  spotC.getContext('2d').drawImage(canvas, 0, 0);   // the lit frame, copied before it is darkened
+  ctx.globalAlpha = 0.8 * a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); ctx.globalAlpha = 1;
+  const boss = G.units.find(u => u.boss && !u.dead), spots = players.map(p => [p.x, p.y, 22]);
+  if (boss) spots.push([boss.x, boss.y, 40]);
+  if (G.pet) spots.push([G.pet.x, G.pet.y, 16]);
+  ctx.save(); ctx.beginPath();
+  for (const [x, y, r] of spots) { ctx.moveTo(x - cam.x + shx + r, y - cam.y + shy); ctx.arc(x - cam.x + shx, y - cam.y + shy, r, 0, 6.283); }
+  ctx.clip(); ctx.drawImage(spotC, 0, 0); ctx.restore();
+  ctx.strokeStyle = '#c8f060'; ctx.lineWidth = 1; ctx.globalAlpha = 0.3 * a;
+  for (const [x, y, r] of spots) { ctx.beginPath(); ctx.arc(x - cam.x + shx, y - cam.y + shy, r, 0, 6.283); ctx.stroke(); }
+  ctx.globalAlpha = 1;
 }
 function bossStep(dt, alive) {
   const bt = lvl().boss;
@@ -1320,35 +1374,25 @@ function bossStep(dt, alive) {
     say('BOSS: MAN FLU!'); G.shake = 5; sfx('charge', 90, 1.2, 'sawtooth', 0.05, 120);
   }
   for (const u of G.units) {   // the boss sneezes snot at the nearest player in little fans; the snot hits nothing else
-    if (!u.boss || u.dead || u.morph || !alive.length) continue;
+    if (!u.boss || u.dead || !alive.length) continue;
     u.shotT = (u.shotT == null ? 2 : u.shotT) - dt;
     if (u.shotT > 0) continue;
     const t = nearestPlayer(u);
     if (!t || dist(u, t) > 380) { u.shotT = 0.5; continue; }
-    u.shotT = 1.7; const base = Math.atan2(t.y - u.y, t.x - u.x);
-    for (let i = -1; i <= 1 && G.fp.length < 30; i++) { const a = base + i * 0.22; G.fp.push({ id: G.fpId = (G.fpId || 0) + 1, x: u.x + Math.cos(a) * u.r, y: u.y + Math.sin(a) * u.r, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, life: 3.2 }); }
+    u.shotT = u.hp < u.maxHp * 0.5 ? 1.0 : 1.4; const base = Math.atan2(t.y - u.y, t.x - u.x);
+    for (let i = -2; i <= 2 && G.fp.length < 40; i++) { const a = base + i * 0.2; G.fp.push({ id: G.fpId = (G.fpId || 0) + 1, x: u.x + Math.cos(a) * u.r, y: u.y + Math.sin(a) * u.r, vx: Math.cos(a) * 135, vy: Math.sin(a) * 135, life: 3.2 }); }
     sfx('spit', 180, 0.15, 'sawtooth', 0.03, -80); burst(u.x, u.y, '#c8f060', 6, 40);
   }
   for (const b of G.fp) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     for (const p of alive) if (Math.hypot(b.x - p.x, b.y - p.y) < 5 * S.scale + 3) {
       b.life = 0; burst(b.x, b.y, '#c8f060', 6, 40);
-      p.infection += 4 * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.15; p.fluT = G.t;
+      p.infection += 4 * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.15;
       sfx('hurt', 150, 0.08, 'sawtooth', 0.025, -60); break;
     }
     if (b.x < 0 || b.y < 0 || b.x > CFG.W || b.y > CFG.H) b.life = 0;
   }
   G.fp = G.fp.filter(b => b.life > 0);
-  for (const u of G.units) {
-    if (!u.morph || u.dead) continue;
-    u.morph.t += dt; u.atkCd = 1;
-    if (u.morph.t >= MORPH_T) {
-      u.dead = true; burst(u.x, u.y, '#ff9ac8', 20, 70); sfx('conv', 600, 0.4, 'sine', 0.05, 500);
-      say(hasPet ? 'MAN FLU IS YOUR FRIEND AGAIN!' : 'MAN FLU IS NOW YOUR PET! IT FOLLOWS YOU FROM NOW ON'); G.msgT = 6;
-      hasPet = true; try { localStorage.setItem('vaccine.pet', '1'); } catch (e) { /* private mode */ }
-      G.pet = { x: u.x, y: u.y, vx: 0, vy: 0 };
-    }
-  }
   const pt = G.pet;
   if (pt && alive.length) {   // the pet trots after the nearest player and stays a little behind
     let t = alive[0]; for (const p of alive) if (dist(p, pt) < dist(t, pt)) t = p;
@@ -1743,7 +1787,7 @@ function render() {
     const mk = u.morph ? u.morph.t / MORPH_T : u.morphK > 0 ? u.morphK : 0;
     if (u.boss && mk > 0) {   // transforming: shrinks into the pet and blinks all the way
       const bw = img.width; img = mk > 0.5 ? SPR.pet : img; sz = bw + (SPR.pet.width - bw) * mk;
-      if (Math.floor(G.t * 14) % 2) img = tinted(img, '#ffffff');
+      if (Math.floor((G.t + (G.cine ? G.cine.t : 0)) * 14) % 2) img = tinted(img, '#ffffff');
     }
     if (u.flash > 0) img = tinted(img, '#ffffff');
     rect(u.x - u.r * 0.8 - cam.x + shx, u.y + u.r - 1 - cam.y + shy, Math.round(u.r * 1.6), 2, '#000', 0.3);
@@ -1766,11 +1810,11 @@ function render() {
     drawText(touchUI ? 'TAP' : 'CLICK', sp.x - cam.x + shx, sp.y - 20 - cam.y + shy, '#ffe070', 1, 'c');
   }
   for (const u of G.units) {   // warning: dotted lanes toward the target just before the boss sneezes
-    if (!u.boss || u.dead || u.morph || u.morphK > 0 || !(u.shotT > 0 && u.shotT < 0.55)) continue;
+    if (!u.boss || u.dead || u.morph || u.morphK > 0 || G.cine || !(u.shotT > 0 && u.shotT < 0.55)) continue;
     const t = nearestPlayer(u);
     if (!t || dist(u, t) > 380) continue;
     const base = Math.atan2(t.y - u.y, t.x - u.x), k = 1 - u.shotT / 0.55;
-    for (let i = -1; i <= 1; i++) for (let d = u.r + 6; d < u.r + 70; d += 8) rect(u.x + Math.cos(base + i * 0.22) * d - cam.x + shx, u.y + Math.sin(base + i * 0.22) * d - cam.y + shy, 2, 2, '#c8f060', 0.25 + 0.6 * k);
+    for (let i = -2; i <= 2; i++) for (let d = u.r + 6; d < u.r + 70; d += 8) rect(u.x + Math.cos(base + i * 0.2) * d - cam.x + shx, u.y + Math.sin(base + i * 0.2) * d - cam.y + shy, 2, 2, '#c8f060', 0.25 + 0.6 * k);
   }
   for (const b of G.fp) {   // snot balls
     const x = b.x - cam.x + shx, y = b.y - cam.y + shy, pu = Math.floor(G.t * 10) % 2;
@@ -1879,6 +1923,7 @@ function render() {
     }
   }
   for (const t of G.tips) drawText(t.text, t.x - cam.x + shx, t.y - cam.y + shy - (0.9 - t.t) * 10, t.col, 1, 'c');
+  if (G.cine) drawCineSpot();
   drawHud();
   if (touchUI && state === 'play') drawTouch();
   if (state === 'title') drawTitle();
@@ -1952,7 +1997,7 @@ function drawHud() {
   const boss = G.units.find(u => u.boss && !u.dead);
   if (boss) {   // boss health bar along the bottom of the screen
     const w = Math.min(200, VIEW_W - 40), x = VIEW_W / 2 - w / 2, y = VIEW_H - 32, fr = clamp(boss.hpF !== undefined ? boss.hpF : boss.hp / boss.maxHp, 0, 1), fl = boss.morph || boss.morphK > 0;
-    drawText('MAN FLU', VIEW_W / 2, y - 16, fl && Math.floor(G.t * 8) % 2 ? '#ff9ac8' : '#c8f060', 2, 'c');
+    drawText('MAN FLU', VIEW_W / 2, y - 16, fl && Math.floor((G.t + (G.cine ? G.cine.t : 0)) * 8) % 2 ? '#ff9ac8' : '#c8f060', 2, 'c');
     rect(x - 2, y - 2, w + 4, 11, '#000'); rect(x - 1, y - 1, w + 2, 9, '#a8c83a'); rect(x, y, w, 7, '#2a0a08');
     rect(x, y, Math.round(w * fr), 7, fl ? '#ff9ac8' : '#d03020'); rect(x, y, Math.round(w * fr), 2, fl ? '#ffd0e4' : '#ff6a50');
   }
@@ -2261,7 +2306,7 @@ function hostSend(dt) {
     un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? u.hack.i : -1, u.morph ? r2(u.morph.t / MORPH_T) : -1, u.boss ? r2(u.hp / u.maxHp) : -1, u.boss ? r2(Math.max(0, u.shotT || 0)) : -1]),
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
-    pb: G.pb.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed, b.pi]), pr: G.pr.map(b => [r1(b.x), r1(b.y), b.s, r1(b.len), r2(b.t), b.pi]), pg: G.pg.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur), g.pi, r1(g.r)]), ps: G.ps.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life), x.pi]), np: G.newPower || '', fp: G.fp.map(b => [b.id, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]), pt: G.pet ? [r1(G.pet.x), r1(G.pet.y)] : 0,
+    pb: G.pb.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed, b.pi]), pr: G.pr.map(b => [r1(b.x), r1(b.y), b.s, r1(b.len), r2(b.t), b.pi]), pg: G.pg.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur), g.pi, r1(g.r)]), ps: G.ps.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life), x.pi]), np: G.newPower || '', ci: G.cine ? r2(G.cine.t) : -1, fp: G.fp.map(b => [b.id, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]), pt: G.pet ? [r1(G.pet.x), r1(G.pet.y)] : 0,
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
     bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), bo: G.bolts.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
   evq = [];
@@ -2308,7 +2353,7 @@ function applySnap(d) {
   G.projs = d.pj.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3] }));
   G.gems = d.gm.map((a, i) => ({ x: a[0], y: a[1], ph: i * 0.7 }));
   G.pb = (d.pb || []).map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], t: a[4], seed: a[5], pi: a[6] })); G.pr = (d.pr || []).map(a => ({ x: a[0], y: a[1], s: a[2], len: a[3], t: a[4], pi: a[5] }));
-  G.pg = (d.pg || []).map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5], pi: a[6], r: a[7] })); G.ps = (d.ps || []).map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3], pi: a[4] })); G.newPower = d.np || ''; {   // guest: snot keeps flying between snapshots (velocity extrapolation) and only eases onto the host's position
+  G.pg = (d.pg || []).map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5], pi: a[6], r: a[7] })); G.ps = (d.ps || []).map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3], pi: a[4] })); G.newPower = d.np || ''; G.cine = d.ci >= 0 ? { t: d.ci } : null; {   // guest: snot keeps flying between snapshots (velocity extrapolation) and only eases onto the host's position
     net.fp = net.fp || new Map(); const seenF = new Set(), list = [];
     for (const a of d.fp || []) {
       let b = net.fp.get(a[0]);
@@ -2351,6 +2396,7 @@ function guestTick(dt) {
   for (const g of G.globs) g.t += dt;
   for (const b of G.fp) { b.tx += b.vx * dt; b.ty += b.vy * dt; b.x += b.vx * dt + (b.tx - b.x) * k; b.y += b.vy * dt + (b.ty - b.y) * k; }
   if (G.pet) { G.pet.x += (G.pet.tx - G.pet.x) * k; G.pet.y += (G.pet.ty - G.pet.y) * k; G.pet.vx = (G.pet.tx - G.pet.x) * 8; G.pet.vy = (G.pet.ty - G.pet.y) * 8; }
+  if (G.cine) G.cine.t += dt;
   for (const g of G.pg) g.t += dt;
   for (const b of G.pb) b.t += dt;
   for (const b of G.pr) b.t += dt;
