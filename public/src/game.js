@@ -10,6 +10,7 @@ const TYPES = {
   runner: { r: 4, hp: 10, speed: 62, dmg: 3,  arc: 0.65, xp: 1, ally: 11, col: '#f0b030' },
   brute:  { r: 9, hp: 70, speed: 22, dmg: 12, arc: 0.45, xp: 4, ally: 24, col: '#a050d8' },
   slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
+  ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
   saboteur: { r: 5, hp: 14, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -23,8 +24,11 @@ const ORGANS = [
 const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '' },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
-    sacs: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
+    fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
+  heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
+    fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
 };
+const FIXNAMES = { sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
 const LEVEL_KEYS = Object.keys(LEVELS);
 let lvKey = 'classic';
 const lvl = () => LEVELS[lvKey];
@@ -299,7 +303,7 @@ const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, 
 
 function newGame(co) {
   coop = !!co;
-  G = { fix: [], phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
+  G = { fix: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
         spawnT: 2, nextSwarm: 40, msg: '', msgT: 0, shake: 0, overT: 0, result: '', reason: '' };
   // team-wide progression: one level, one XP bar, one set of upgrades shared by everybody
   S = { level: 1, xp: 0, next: 6, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
@@ -307,7 +311,7 @@ function newGame(co) {
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
-  G.fix = (lvl().sacs || []).map(([x, y], i) => ({ fix: true, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5) }));
+  G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5) }));
   if (lvl().intro) say(lvl().intro);
   updateCam();
 }
@@ -337,7 +341,7 @@ function addUnit(team, type, x, y) {
   const T = TYPES[type], hpm = team === 'v' ? 1 + G.t / 300 : 1;
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
-    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: rand(1.5, 5), tail: null,
+    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(3, 9) : rand(1.5, 5), tail: null,
     tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0 };
   G.units.push(u);
   return u;
@@ -389,7 +393,7 @@ function convert(u) {
     u.team = 'v';
     burst(u.x, u.y, '#9ae05a', 14, 70); sfx('inf', 300, 0.18, 'sawtooth', 0.03, -200);
   }
-  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = rand(4, 6); u.tail = null;
+  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = u.team === 'v' ? rand(7, 10) : rand(4, 6); u.tail = null;
 }
 function convertOrgan(o) {
   o.team = o.team === 'i' ? 'v' : 'i';
@@ -594,8 +598,13 @@ function hurtOrgan(o, d) {
 
 // ---------------------------------------------------------------- hazards (infected organs) and medicine loot
 const sizeOf = p => p.mass * (p.fx.bloat > 0 ? 1.35 : 1);
-const oxy = () => { if (!G.fix.length) return 1; let s = 0; for (const f of G.fix) s += f.st === 0 ? 1 : f.st === 1 ? 0.5 : 0; return s / G.fix.length; };   // lung level: how open the air sacs are
-const spdMul = p => (p.fx.speed > 0 ? 1.5 : 1) * (p.fx.slow > 0 ? 0.5 : 1) * (p.fx.bloat > 0 ? 0.8 : 1) * (G.fix.length ? 0.65 + 0.35 * oxy() : 1);
+const oxy = () => {   // lungs: how open the air sacs are (oxygen). heart: how well the valves and pacemaker work (rhythm; the pacemaker counts double)
+  if (!G.fix.length) return 1;
+  let s = 0, w = 0;
+  for (const f of G.fix) { const k = f.kind === 'pace' ? 2 : 1; s += k * (f.st === 0 ? 1 : f.st === 1 ? 0.5 : 0); w += k; }
+  return s / w;
+};
+const spdMul = p => (p.fx.speed > 0 ? 1.5 : 1) * (p.fx.slow > 0 ? 0.5 : 1) * (p.fx.bloat > 0 ? 0.8 : 1) * (lvKey === 'lung' ? 0.65 + 0.35 * oxy() : 1);
 const organNamed = n => organs.find(o => o.name === n);
 
 // Anything (player, ally, virus) that touches slime is frozen in place for 3s, then can't be re-stuck for a moment.
@@ -706,33 +715,64 @@ function hazardsStep(dt, alive) {
   G.pills = G.pills.filter(pl => pl.life > 0);
 }
 
-// ---------------------------------------------------------------- lung level: breathing, clogging, mucus, coughs
-// Inhale pulls everything toward the trachea (up), exhale blows it back down. Saboteur viruses clog the air sacs; the
-// fewer open sacs, the less oxygen (slower, less recovery). Escalates in three phases.
+// ---------------------------------------------------------------- fixable levels (lungs, heart)
+// Saboteur viruses clog the fixables; poking one repairs a step. The worse they get, the worse the organ's hazards.
+// Lungs: inhale pulls everything up toward the trachea, exhale blows it down; sick sacs lob slime and breed slimelings;
+// phase 3 adds telegraphed coughs. Heart: the pacemaker sets the beat (and a swirling blood current); sick valves and
+// the pacemaker fire fever rays and breed ember cells; phase 3 adds fever surges from the core.
 function breathY() {
   const ph = (G.t % 10) / 10;
   if (ph < 0.4) return -Math.sin(ph / 0.4 * Math.PI);
   if (ph >= 0.5 && ph < 0.9) return Math.sin((ph - 0.5) / 0.4 * Math.PI);
   return 0;
 }
-const TRACHEA = { x: 600, y: 30 };
-function lungStep(dt, alive) {
+const TRACHEA = { x: 600, y: 30 }, HEART_C = { x: 600, y: 450 };
+const beatPulse = () => Math.pow(Math.max(0, Math.sin(G.beat * 6.283)), 3);
+function beatStep(dt) {   // runs on the host and on guests (cosmetic rhythm only needs the pacemaker state)
+  if (lvKey !== 'heart' || !G.fix.length) return;
+  const st = G.fix[0].st, period = st === 0 ? 0.9 : st === 1 ? 0.75 + 0.3 * Math.sin(G.t * 1.7) : 0.55;
+  G.beat += dt / period;
+  G.flowA += dt * 0.5 * (0.35 + 0.65 * beatPulse()) * (1 + 0.5 * st);
+}
+const phaseNow = () => G.t > 200 ? 3 : G.t > 90 ? 2 : 1;
+
+// sick fixables breed little enemies (progress bar under them)
+function sickSpawn(f, dt, fast, type) {
+  f.spawnMax = (f.st === 2 ? 8 : 14) * fast;
+  f.spawnT = (f.spawnT == null ? rand(3, f.spawnMax) : f.spawnT) - dt;
+  if (f.spawnT <= 0) {
+    f.spawnT = f.spawnMax;
+    if (count('v') < CFG.MAX_VIRUS) { const a = rand(0, 6.283); addUnit('v', type, f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 20); burst(f.x, f.y, TYPES[type].col, 8, 50); }
+  }
+}
+
+function fixStep(dt, alive) {
   if (!G.fix.length) return;
-  const push = 55 * breathY();
-  for (const p of alive) if (p.stuckT <= 0) p.y = clamp(p.y + push * dt, 10, CFG.H - 10);
-  for (const u of G.units) if (u.stuckT <= 0) u.y = clamp(u.y + push * 0.7 * dt, 6, CFG.H - 6);
+  const heart = lvKey === 'heart', phase = phaseNow(), O = oxy();
   for (const f of G.fix) { f.weakA += f.weakS * dt; f.cd -= dt; }
-  const O = oxy(), phase = G.t > 200 ? 3 : G.t > 90 ? 2 : 1;
+  beatStep(dt);
   if (phase !== G.phase) {
-    G.phase = phase; say(phase === 2 ? 'SICK SACS SPIT FASTER! AVOID SLIME' : 'COUGHING FITS! BRACE YOURSELF'); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200);
+    G.phase = phase;
+    say(heart ? (phase === 2 ? 'FEVER SPIKES! WATCH THE STRIPES' : 'FEVER SURGES FROM THE CORE!') : (phase === 2 ? 'SICK SACS SPIT FASTER! AVOID SLIME' : 'COUGHING FITS! BRACE YOURSELF'));
+    sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200);
   }
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
     G.sabT = Math.max(6, 15 - G.t / 40) * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
     const n = 1 + (G.t > 150 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
-    if (G.t < 60 || Math.random() < 0.3) say('SABOTEURS! THEY CLOG THE AIR SACS');
+    if (G.t < 60 || Math.random() < 0.3) say(heart ? 'SABOTEURS! THEY JAM THE VALVES' : 'SABOTEURS! THEY CLOG THE AIR SACS');
   }
+  if (heart) heartStep(dt, alive, phase); else lungStep(dt, alive, phase);
+  if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say(heart ? 'RHYTHM FAILING! POKE THE VALVES' : 'OXYGEN LOW! POKE THE SACS OPEN'); } else if (O > 0.5) G.lowWarn = false;
+  if (O < 0.15) { G.suffT += dt; if (G.suffT >= 15) endGame(false, heart ? 'CARDIAC ARREST' : 'THE LUNGS COLLAPSED'); }
+  else G.suffT = Math.max(0, G.suffT - dt * 2);
+}
+
+function lungStep(dt, alive, phase) {
+  const push = 55 * breathY();
+  for (const p of alive) if (p.stuckT <= 0) p.y = clamp(p.y + push * dt, 10, CFG.H - 10);
+  for (const u of G.units) if (u.stuckT <= 0) u.y = clamp(u.y + push * 0.7 * dt, 6, CFG.H - 6);
   // sick sacs behave like the infected lungs of the classic level: they lob slime and breed little slime enemies
   for (const f of G.fix) {
     if (f.st === 0) { f.spawnMax = 0; continue; }
@@ -748,12 +788,7 @@ function lungStep(dt, alive) {
         burst(f.x, f.y, '#9ae05a', 8, 50); sfx('spit', 200, 0.2, 'sawtooth', 0.03, -80);
       }
     }
-    f.spawnMax = (f.st === 2 ? 8 : 14) * fast;
-    f.spawnT = (f.spawnT == null ? rand(3, f.spawnMax) : f.spawnT) - dt;
-    if (f.spawnT <= 0) {
-      f.spawnT = f.spawnMax;
-      if (count('v') < CFG.MAX_VIRUS) { const a = rand(0, 6.283); addUnit('v', 'slimeling', f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 20); burst(f.x, f.y, '#8fdc4a', 8, 50); }
-    }
+    sickSpawn(f, dt, fast, 'slimeling');
   }
   if (phase >= 3 && !G.cough) {   // coughs: a telegraphed shockwave from the trachea
     G.coughT -= dt;
@@ -769,9 +804,44 @@ function lungStep(dt, alive) {
     }
     if (c.t > c.warn + 0.7) G.cough = null;
   }
-  if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say('OXYGEN LOW! POKE THE SACS OPEN'); } else if (O > 0.5) G.lowWarn = false;
-  if (O < 0.15) { G.suffT += dt; if (G.suffT >= 15) endGame(false, 'THE LUNGS COLLAPSED'); }
-  else G.suffT = Math.max(0, G.suffT - dt * 2);
+}
+
+function heartStep(dt, alive, phase) {
+  // blood current: a clockwise swirl around the core that surges with every beat (harder when the pacemaker is off)
+  const amp = 24 * (0.35 + 0.65 * beatPulse()) * (1 + 0.4 * G.fix[0].st);
+  const swirl = (e, k) => {
+    const dx = e.x - HEART_C.x, dy = e.y - HEART_C.y, d = Math.hypot(dx, dy);
+    if (d < 40) return;
+    e.x = clamp(e.x - dy / d * amp * k * dt, 10, CFG.W - 10); e.y = clamp(e.y + dx / d * amp * k * dt, 10, CFG.H - 10);
+  };
+  for (const p of alive) swirl(p, 1);
+  for (const u of G.units) swirl(u, 0.7);
+  // sick valves / pacemaker fire fever rays in random directions (a warning lane shows where) and breed embers
+  for (const f of G.fix) {
+    if (f.st === 0) { f.spawnMax = 0; continue; }
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    f.rayT = (f.rayT == null ? rand(3, 8) : f.rayT) - dt;
+    if (f.rayT <= 0) {
+      f.rayT = (f.st === 2 ? 7 : 12) * fast * rand(0.85, 1.15);
+      if (G.beams.length < 8) {
+        let a = rand(0, 6.283);
+        if (Math.random() < 0.3) { const p = alive[Math.floor(Math.random() * alive.length)]; a = Math.atan2(p.y - f.y, p.x - f.x); }   // now and then one is aimed
+        G.beams.push({ x: f.x, y: f.y, a, len: 300, w: 14, t: 0, warn: phase >= 2 ? 1.1 : 1.4, fire: 0.7, fired: false });
+        sfx('charge', 120, 1.2, 'sawtooth', 0.03, 300);
+        if (!G.rayWarned) { G.rayWarned = true; say('FEVER RAYS! MOVE AWAY FROM THE STRIPES'); }
+      }
+    }
+    sickSpawn(f, dt, fast, 'ember');
+  }
+  if (phase >= 3) {   // fever surge: a ring of rays from the core, safe lanes in between
+    G.coughT -= dt;
+    if (G.coughT <= 0) {
+      G.coughT = rand(22, 30);
+      const n = 6, off = rand(0, 6.283);
+      for (let i = 0; i < n; i++) G.beams.push({ x: HEART_C.x, y: HEART_C.y, a: off + i / n * 6.283, len: 420, w: 14, t: 0, warn: 1.6, fire: 0.8, fired: false });
+      say('FEVER SURGE! STAND BETWEEN THE STRIPES'); sfx('charge', 100, 1.6, 'sawtooth', 0.03, 260);
+    }
+  }
 }
 
 function strikeUnit(a, b) { a.atkCd = 0.7 + Math.random() * 0.2; damageUnit(b, a.dmg); }
@@ -834,7 +904,7 @@ function update(dt) {
     if (p.kickT > 0) { p.kickT -= dt; const f = p.kickT / 0.4; p.x = clamp(p.x + p.kx * f * dt, 10, CFG.W - 10); p.y = clamp(p.y + p.ky * f * dt, 10, CFG.H - 10); }
     p.bob += Math.hypot(p.vx, p.vy) * dt * 0.25;
     slimeStick(p, dt, true);
-    if (p.hitT > 4) p.infection = Math.max(0, p.infection - S.regen * 1.2 * oxy() * dt);   // you only shake it off after 4s without a hit
+    if (p.hitT > 2) p.infection = Math.max(0, p.infection - S.regen * 1.2 * oxy() * dt);   // you only shake it off after 2s without a hit
     for (const o of organs) if (o.team === 'i' && Math.hypot(p.x - o.x, p.y - o.y) < 60) p.infection = Math.max(0, p.infection - 2.5 * dt);
     if (p.infection >= 100) {
       p.infection = 100; p.down = true; p.reviveT = 0; p.vx = p.vy = 0;
@@ -907,7 +977,7 @@ function update(dt) {
   }
 
   hazardsStep(dt, alive);
-  lungStep(dt, alive);
+  fixStep(dt, alive);
 
   // ---- units: AI, movement
   buildGrid();
@@ -927,7 +997,7 @@ function update(dt) {
     u.convCd -= dt;
     if (!u.tail && (u.convCd <= 0 || u.team === 'v')) {
       const t = lashTarget(u, u.convCd > 0);
-      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = rand(5, 8); }
+      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = u.team === 'v' ? rand(9, 13) : rand(5, 8); }   // viruses wait longer than allies between lashes
     }
     if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
     if (u.stuckT > 0) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime
@@ -974,7 +1044,7 @@ function update(dt) {
       const push = (u.r + ppr - dp) * 0.5 / dp;
       u.x -= dpx * push; u.y -= dpy * push;
       if (u.team === 'v' && u.atkCd <= 0) {
-        u.atkCd = 0.8;
+        u.atkCd = 1.1;
         p.infection += u.dmg * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1);   p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2);   // viruses hit harder as the infection matures
         p.vx += dpx / dp * 40; p.vy += dpy / dp * 40;
         sfx('hurt', 150, 0.1, 'sawtooth', 0.03, -60);
@@ -1156,13 +1226,19 @@ function render() {
     sprite(SPR.pill, pl.x, pl.y + by, 18, 9);
   }
 
-  if (G.fix.length) {   // trachea (where mucus and coughs come from) and the air sacs
-    const tx = TRACHEA.x - cam.x + shx, ty = -cam.y + shy;
-    rect(tx - 9, ty, 18, 56, '#5a2c46'); rect(tx - 7, ty, 14, 56, '#a86a88');
-    for (let y = 4; y < 56; y += 8) rect(tx - 9, ty + y, 18, 2, '#5a2c46');
-    const br = breathY();
+  if (G.fix.length) {   // level furniture + the fixables (air sacs / valves / pacemaker)
+    const heart = lvKey === 'heart';
+    if (!heart) {   // trachea
+      const tx = TRACHEA.x - cam.x + shx, ty = -cam.y + shy;
+      rect(tx - 9, ty, 18, 56, '#5a2c46'); rect(tx - 7, ty, 14, 56, '#a86a88');
+      for (let y = 4; y < 56; y += 8) rect(tx - 9, ty + y, 18, 2, '#5a2c46');
+    } else {   // the core, beating
+      const pu = beatPulse(), cx = HEART_C.x - cam.x + shx, cy = HEART_C.y - cam.y + shy;
+      for (let i = 0; i < 40; i++) { const t = i / 40 * 6.283; rect(cx + Math.cos(t) * (30 + 6 * pu), cy + Math.sin(t) * (30 + 6 * pu), 2, 2, '#ff6070', 0.25 + 0.3 * pu); }
+    }
+    const br = breathY(), bp = beatPulse();
     for (const f of G.fix) {
-      const img = SPR.sac[f.st], k = 1 - 0.18 * br, w = Math.round(img.width * k), h = Math.round(img.height * k);
+      const img = SPR[f.kind][f.st], k = heart ? 1 + 0.14 * bp : 1 - 0.18 * br, w = Math.round(img.width * k), h = Math.round(img.height * k);
       if (f.st === 0) {
         const pu = 0.5 + 0.5 * Math.sin(G.t * 2 + f.i);
         ctx.strokeStyle = 'rgba(120,230,255,' + (0.2 + 0.15 * pu) + ')'; ctx.lineWidth = 1;
@@ -1174,11 +1250,11 @@ function render() {
         weakGlow(f.x, f.y, f.r, f.weakA, '#fff6a0', true, nearSpot(f));
         if (nearSpot(f)) bodyRing(f.x, f.y, f.r + 5);
       }
-      if (f.st > 0 && f.spawnMax > 0) {   // when the next slime enemy pops out
+      if (f.st > 0 && f.spawnMax > 0) {   // when the next little enemy pops out
         const bx2 = Math.round(f.x - 12 - cam.x + shx), by2 = Math.round(f.y + 25 - cam.y + shy);
-        rect(bx2 - 1, by2 - 1, 26, 4, '#000', 0.7); rect(bx2, by2, Math.round(24 * clamp(1 - f.spawnT / f.spawnMax, 0, 1)), 2, '#9ae05a');
+        rect(bx2 - 1, by2 - 1, 26, 4, '#000', 0.7); rect(bx2, by2, Math.round(24 * clamp(1 - f.spawnT / f.spawnMax, 0, 1)), 2, heart ? '#ff9a40' : '#9ae05a');
       }
-      drawText(['OPEN', 'CLOGGED', 'COLLAPSED'][f.st], f.x - cam.x + shx, f.y + 17 - cam.y + shy, ['#7fe8ff', '#ffd060', '#ff8a7a'][f.st], 1, 'c');
+      drawText(FIXNAMES[f.kind][f.st], f.x - cam.x + shx, f.y + 17 - cam.y + shy, ['#7fe8ff', '#ffd060', '#ff8a7a'][f.st], 1, 'c');
     }
   }
 
@@ -1314,7 +1390,16 @@ function render() {
   for (const p of G.projs) sprite(SPR.shot, p.x, p.y);
   for (const p of G.parts) rect(p.x - cam.x + shx, p.y - cam.y + shy, p.sz, p.sz, p.col, clamp(p.life / 0.35, 0, 1));
 
-  if (G.fix.length) {
+  if (lvKey === 'heart') {   // every beat throbs the screen red; blood cells swirl around the core faster on the beat
+    const pu = beatPulse();
+    rect(0, 0, VIEW_W, VIEW_H, '#ff2040', 0.05 + 0.1 * pu);
+    for (let i = 0; i < 60; i++) {
+      const r = 70 + (i * 53) % 400, a = i * 2.39 + G.flowA * (1 + (i % 5) * 0.12) * 60 / (r + 60) * 2;
+      const x = HEART_C.x + Math.cos(a) * r - cam.x + shx, y = HEART_C.y + Math.sin(a) * r - cam.y + shy;
+      if (x > 0 && x < VIEW_W && y > 0 && y < VIEW_H) rect(x, y, 2, 2, i % 3 ? '#ff8a98' : '#ffd0d6', 0.5);
+    }
+  }
+  if (lvKey === 'lung') {
     const br = breathY();
     if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
       const dir = Math.sign(br), a = Math.abs(br);
@@ -1373,11 +1458,17 @@ function drawHud() {
   const left = Math.max(0, lvl().time - G.t), mm = Math.floor(left / 60), ss = Math.floor(left % 60);
   drawText(mm + ':' + String(ss).padStart(2, '0'), VIEW_W / 2, 4, '#fff', 2, 'c');
   if (G.fix.length) {
-    const O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
-    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : '#4ad8ff');
-    drawText(warn ? 'COLLAPSE IN ' + Math.max(0, Math.ceil(15 - G.suffT)) : 'OXYGEN ' + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
-    const br = breathY();
-    drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
+    const heart = lvKey === 'heart', O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
+    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : '#4ad8ff');
+    drawText(warn ? (heart ? 'ARREST IN ' : 'COLLAPSE IN ') + Math.max(0, Math.ceil(15 - G.suffT)) : (heart ? 'RHYTHM ' : 'OXYGEN ') + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
+    if (heart) {
+      const fv = Math.round((1 - O) * 100), pu = beatPulse(), ic = SPR.heartIcon, k = 1 + 0.5 * pu;
+      ctx.drawImage(ic, Math.round(VIEW_W / 2 - 22 - ic.width * k / 2), Math.round(VIEW_H - 14 - (k - 1) * 4), Math.round(ic.width * k), Math.round(ic.height * k));
+      drawText('FEVER ' + fv + '%', VIEW_W / 2 + 4, VIEW_H - 12, fv > 60 ? '#ff6a5a' : fv > 30 ? '#ffb060' : '#ffd0d6', 1, 'l');
+    } else {
+      const br = breathY();
+      drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
+    }
     drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 22, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
     G.fix.forEach((f, i) => { const bx = 4 + i * 9; rect(bx - 1, VIEW_H - 13, 8, 10, '#000', 0.7); rect(bx, VIEW_H - 12, 6, 8, ['#2a9ac0', '#c8a020', '#b04030'][f.st]); });
   }
@@ -1398,7 +1489,7 @@ function drawHud() {
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
-    .concat(G.fix.filter(f => f.st > 0).map(f => ({ x: f.x, y: f.y, tag: 'SAC', col: f.st > 1 ? '#ff8a7a' : '#ffd060', tc: '#ffd88a' })))
+    .concat(G.fix.filter(f => f.st > 0).map(f => ({ x: f.x, y: f.y, tag: f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VLV' : 'SAC', col: f.st > 1 ? '#ff8a7a' : '#ffd060', tc: '#ffd88a' })))
     .concat(players.filter(p => p.down).map(p => ({ x: p.x, y: p.y, tag: 'P' + (p.idx + 1), col: '#7fffd0', tc: '#7fffd0' })));
   for (const o of marks) {
     const sx = o.x - cam.x, sy = o.y - cam.y;
@@ -1547,14 +1638,14 @@ function drawOver() {
   drawText(win ? 'HOST SAVED!' : 'INFECTION WINS', c, 40, win ? '#7fe8ff' : '#9ae05a', 4, 'c');
   drawText(G.reason, c, 70, '#fff', 1, 'c');
   const saved = organs.filter(o => o.team === 'i').length;
-  [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['SACS REPAIRED', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
+  [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
     .forEach(([k, v], i) => { drawText(k, c - 10, 95 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, 95 + i * 11, '#fff'); });
   if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : 'CLICK TO TRY AGAIN', c, Math.min(175, VIEW_H - 24), '#fff', isGuest() ? 1 : 2, 'c');
 }
 
 // ---------------------------------------------------------------- online
 // Host-authoritative: the host simulates everything. The guest sends its input and renders snapshots.
-const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling'];
+const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember'];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
@@ -1722,7 +1813,7 @@ function guestTick(dt) {
   G.shake = Math.max(0, G.shake - 20 * dt);
   for (const t of G.tips) t.t -= dt;
   G.tips = G.tips.filter(t => t.t > 0);
-  if (state === 'play') { G.t += dt; G.msgT -= dt; }
+  if (state === 'play') { G.t += dt; G.msgT -= dt; beatStep(dt); }
   // send our input at ~30 Hz
   net.inT -= dt;
   if (net.inT <= 0 && state !== 'lobby') {

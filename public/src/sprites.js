@@ -160,6 +160,42 @@ function makeSac(st) {
   return c;
 }
 
+// heart muscle: deep red with diagonal fibres
+function makeHeartBackground() {
+  const S = 64, c = mk(S, S), g = c.getContext('2d');
+  px(g, 0, 0, '#4a111c', S, S);
+  for (let i = 0; i < 38; i++) {
+    const x = srand() * S, y = srand() * S, len = 6 + Math.floor(srand() * 12), col = ['#5a1624', '#3c0e18', '#6a1c2c'][Math.floor(srand() * 3)];
+    for (let k = 0; k < len; k++) for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) px(g, Math.round(x + k * 0.8 + ox), Math.round(y + k * 0.6 + oy), col, 2, 1);
+  }
+  for (let i = 0; i < 50; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), srand() < 0.5 ? '#7a2434' : '#2e0a12');
+  return c;
+}
+
+// heart valve: a ring with two leaflets. 0 = open, 1 = stiff, 2 = stuck shut and slimy
+function makeValve(st) {
+  const c = mk(36, 34), g = c.getContext('2d');
+  const body = ['#e0707e', '#c8a050', '#6f8a50'][st], light = ['#ffb0b8', '#f0d890', '#a0b878'][st], flap = ['#ffd0d6', '#fff0b0', '#c8d8a0'][st];
+  disc(g, 18, 17, 15, '#3a0a14'); disc(g, 18, 17, 14, body); disc(g, 18, 17, 9, '#3a0a14'); disc(g, 18, 17, 8, '#2a0810');
+  px(g, 8, 9, light, 3, 2); px(g, 22, 25, '#00000055', 3, 2);
+  const gap = [8, 4, 1][st], r = [3, 5, 7][st];
+  disc(g, 18 - gap, 17, r, flap); disc(g, 18 + gap, 17, r, flap);
+  px(g, 18 - gap - 1, 15, '#fff', 1, 1);
+  if (st) for (const [x, y] of [[12, 12], [23, 21], [17, 24], [24, 12]]) px(g, x, y, '#9ae05a', 2, 2);
+  return c;
+}
+
+// pacemaker node: a glowing orb with a bolt. 0 = steady, 1 = erratic (flickers), 2 = stalled (dark)
+function makePacemaker(st) {
+  const c = mk(32, 32), g = c.getContext('2d');
+  const body = ['#ffe070', '#e0a040', '#5a6a48'][st], light = ['#fff6b0', '#ffd890', '#8a9a70'][st], dark = ['#c89020', '#a06820', '#3a4a2c'][st];
+  disc(g, 16, 16, 13, '#3a2a08'); disc(g, 16, 16, 12, dark); disc(g, 15, 15, 10, body); disc(g, 12, 11, 4, light);
+  const bolt = ['...##.', '..##..', '.##...', '.####.', '...##.', '..##..', '.##...'];
+  bolt.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === '#') px(g, 13 + x, 10 + y, st === 2 ? '#222' : st === 1 ? '#7a2a60' : '#6a3a00'); }));
+  if (st) for (const [x, y] of [[9, 22], [22, 12], [20, 23]]) px(g, x, y, '#9ae05a', 2, 2);
+  return c;
+}
+
 (function build() {
   // viruses: spiky blobs in three sizes
   SPR.virus.basic = makeBlob({ r: 6, body: '#6ccf3c', light: '#a8f060', dark: '#3f9a2a', outline: '#1d4a1a', spikeColor: '#e8ff7a', spikes: 8, spikeLen: 3, face: true });
@@ -169,6 +205,8 @@ function makeSac(st) {
   SPR.virus.saboteur = makeBlob({ r: 5, body: '#e050c0', light: '#ff98e8', dark: '#a02890', outline: '#4a0c40', spikeColor: '#ffd0f8', spikes: 5, spikeLen: 3, face: true });
 
   SPR.virus.slimeling = makeBlob({ r: 4, body: '#8fdc4a', light: '#c8f58a', dark: '#4f9a24', outline: '#2f6a16', face: true });
+
+  SPR.virus.ember = makeBlob({ r: 4, body: '#ff8a30', light: '#ffd070', dark: '#c04010', outline: '#4a1004', spikeColor: '#fff0a0', spikes: 6, spikeLen: 2, face: true });
 
   SPR.player = makeFighter('#4aa8ff');
   SPR.ally = makeFighter('#3fd6a6');
@@ -214,6 +252,10 @@ function makeSac(st) {
   SPR.bg = makeBackground();
   SPR.bgLung = makeLungBackground();
   SPR.sac = [0, 1, 2].map(makeSac);
+  SPR.valve = [0, 1, 2].map(makeValve);
+  SPR.pace = [0, 1, 2].map(makePacemaker);
+  SPR.bgHeart = makeHeartBackground();
+  SPR.heartIcon = fromRows(['.rr.rr.', 'rhrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: '#ff4a62', h: '#ffc0c8' });
 })();
 
 // 3x5 bitmap font

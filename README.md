@@ -33,6 +33,14 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   enemies** (a bar under each shows the next one). It escalates: phase 2 (1:30) sick sacs spit faster, phase 3 (3:20)
   coughs fire a telegraphed shockwave that throws everyone away from the trachea.
 
+- **Heart** (5 minutes) - the pacemaker and four valves can be jammed by saboteurs (poke them back, like the air sacs).
+  The pacemaker sets the heartbeat; when it goes erratic or stalls the beat gets faster and the blood current (a
+  clockwise swirl around the core that surges with each beat) pushes harder. Sick valves and the pacemaker fire
+  **fever rays** in random directions (striped warning lanes show where) and breed little **ember** enemies. The
+  **FEVER** readout is 100% minus the rhythm; if the rhythm stays near zero for 15 seconds it is cardiac arrest.
+  Phase 2 (1:30) fires rays faster, phase 3 (3:20) adds fever surges: a ring of rays from the core, with safe lanes
+  between them.
+
 ## Infected organs fight back
 - **Lungs** lob **slime** onto the map (a marker shows where it lands). Anything that touches a puddle - you, allies or
   viruses - is frozen in place for 3 seconds.
