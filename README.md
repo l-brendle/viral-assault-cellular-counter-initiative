@@ -23,7 +23,15 @@ Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
 ## Levels
 Pick the level on the title screen (**L** or the LEVEL button). Online co-op uses the host's level.
+- **Campaign** (default) - Brain, then Lungs, then Heart. Your upgrades and level carry over to the next organ. A win
+  takes you on, a loss retries that organ, and the final win starts the campaign again. In online co-op the guest
+  follows the host from level to level.
 - **Classic** - defend five organs for 6 minutes.
+- **Brain** (5 minutes) - seven synapses linked by neuron lines. Saboteurs jam them (lit -> dim -> dark); poke them
+  back. The level is **dark**: only you, your allies and lit synapses give light, so dark synapses leave corners where
+  viruses hide. Sick synapses discharge **lightning along the neuron lines** (blue striped lanes warn first, stay off
+  the line) and breed **spark** enemies. Phase 2 (1:30) is darker and faster, phase 3 (3:20) adds storms that fire along
+  several lines at once. If the signal stays near zero for 15 seconds the brain goes dark and you lose.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
   weak spot to repair one step (allies help too). Fewer open sacs means less oxygen: you move slower and shake off

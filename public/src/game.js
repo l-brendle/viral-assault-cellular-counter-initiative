@@ -11,6 +11,7 @@ const TYPES = {
   brute:  { r: 9, hp: 70, speed: 22, dmg: 12, arc: 0.45, xp: 4, ally: 24, col: '#a050d8' },
   slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
   ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
+  spark: { r: 4, hp: 8, speed: 52, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#7aa8ff' },   // brain level: spawned by sick synapses
   saboteur: { r: 5, hp: 14, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -23,14 +24,23 @@ const ORGANS = [
 // Levels: each is the inside of one organ. `sacs` are fixables (things to poke back into shape) placed in the world.
 const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '' },
+  brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES, STAY OFF THE LINES',
+    txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS! ARCS SPEED UP', p3: 'STORM! STAY OFF THE LINES' },
+    fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
+    txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
+    txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
 };
-const FIXNAMES = { sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
+const FIXNAMES = { syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
 const LEVEL_KEYS = Object.keys(LEVELS);
-let lvKey = 'classic';
+const CAMPAIGN = ['brain', 'lung', 'heart'];            // the campaign plays these in order, upgrades carry over
+const LEVEL_SEL = ['campaign', 'brain', 'lung', 'heart', 'classic'];
+let lvSel = 'campaign';   // what the title screen has selected
+let lvKey = 'brain';      // the level that is actually loaded
+let camp = null;          // campaign progress while playing it: { i, S0 } (S0 = upgrades at the start of this level)
 const lvl = () => LEVELS[lvKey];
 
 const canvas = document.getElementById('c');
@@ -182,7 +192,7 @@ canvas.addEventListener('pointerdown', e => {
     if (m) { if (fingers && fsAvail() && m < 5) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
   }
   else if (state === 'lobby') lobbyTap();
-  else if (state === 'over' && G.overT > 0.7 && !isGuest()) startGame(coop);
+  else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
   else if (state === 'paused') doPause();
 });
@@ -220,11 +230,12 @@ function lobbyPress(id) {
 const isGuest = () => !!net && net.role === 'guest';
 function titleChoice(m) {
   titleMsg = '';
+  if (m < 5) camp = null;   // a new run from the title always starts the campaign from the beginning
   if (m === 1) startGame(false);
   else if (m === 2) startGame(true);
   else if (m === 3) { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
   else if (m === 4) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
-  else if (m === 5) { lvKey = LEVEL_KEYS[(LEVEL_KEYS.indexOf(lvKey) + 1) % LEVEL_KEYS.length]; newGame(false); }   // cycle the level (the title shows it behind the menu)
+  else if (m === 5) { lvSel = LEVEL_SEL[(LEVEL_SEL.indexOf(lvSel) + 1) % LEVEL_SEL.length]; lvKey = lvSel === 'campaign' ? CAMPAIGN[0] : lvSel; camp = null; newGame(false); }   // cycle campaign / levels (the title shows it behind the menu)
 }
 function pickUpgrade(i) { if (isGuest()) relay({ k: 'pick', i }); else chooseUpgrade(i); }
 function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
@@ -236,7 +247,7 @@ function onKey(k) {
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); }
-  else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) startGame(coop);
+  else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) overContinue();
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
   else if (state === 'play' && k === ' ') pokeNearestKey(0);
   else if (state === 'play' && k === 'f') toggleFire(0);
@@ -312,13 +323,26 @@ function newGame(co) {
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
   G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5) }));
+  G.edges = [];   // brain: neuron lines between the synapses (each node joins its two nearest neighbours)
+  if (lvKey === 'brain') G.fix.forEach(f => {
+    G.fix.filter(o => o !== f).sort((a, b) => dist(f, a) - dist(f, b)).slice(0, 2).forEach(o => {
+      if (!G.edges.some(([x, y]) => (x === f.i && y === o.i) || (x === o.i && y === f.i))) G.edges.push([f.i, o.i]);
+    });
+  });
   if (lvl().intro) say(lvl().intro);
   updateCam();
 }
 function startGame(co) {
+  if (lvSel === 'campaign') { if (!camp) camp = { i: 0, S0: null }; lvKey = CAMPAIGN[camp.i]; }
   newGame(co);
+  if (camp && camp.S0) S = JSON.parse(JSON.stringify(camp.S0));   // upgrades earned so far come along
   if (net && net.role === 'host') players[1].remote = true;
   state = 'play'; sfx('start', 300, 0.25, 'square', 0.04, 400);
+}
+// after a round: campaign win -> next organ (carrying the upgrades), loss -> retry that organ, final win -> start over
+function overContinue() {
+  if (camp && G.result === 'win') { if (camp.i < CAMPAIGN.length - 1) { camp.i++; camp.S0 = JSON.parse(JSON.stringify(S)); } else camp = null; }
+  startGame(coop);
 }
 const alivePlayers = () => players.filter(p => !p.down);
 function nearestPlayer(u) {
@@ -694,7 +718,7 @@ function hazardsStep(dt, alive) {
     const hit = (x, y, r) => { const dx = x - b.x, dy = y - b.y, along = dx * ca + dy * sa; return along >= 0 && along <= b.len && Math.abs(-dx * sa + dy * ca) < b.w / 2 + r; };
     for (const u of G.units) if (!u.dead && hit(u.x, u.y, u.r)) damageUnit(u, 70 * dt);
     for (const p of alive) if (hit(p.x, p.y, 5 * S.scale)) { p.infection += 32 * dt * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.1; }
-    if (Math.random() < 0.7) { const d = rand(10, b.len); G.parts.push({ x: b.x + ca * d, y: b.y + sa * d, vx: rand(-20, 20), vy: rand(-30, -5), life: 0.4, max: 0.4, col: Math.random() < 0.5 ? '#ffb040' : '#ff6a1a', sz: 2 }); }
+    if (Math.random() < 0.7) { const d = rand(10, b.len); G.parts.push({ x: b.x + ca * d, y: b.y + sa * d, vx: rand(-20, 20), vy: rand(-30, -5), life: 0.4, max: 0.4, col: b.c ? (Math.random() < 0.5 ? '#a0c8ff' : '#5a8aff') : (Math.random() < 0.5 ? '#ffb040' : '#ff6a1a'), sz: 2 }); }
   }
   G.beams = G.beams.filter(b => b.t < b.warn + b.fire);
 
@@ -748,25 +772,51 @@ function sickSpawn(f, dt, fast, type) {
 
 function fixStep(dt, alive) {
   if (!G.fix.length) return;
-  const heart = lvKey === 'heart', phase = phaseNow(), O = oxy();
+  const T = lvl().txt, phase = phaseNow(), O = oxy();
   for (const f of G.fix) { f.weakA += f.weakS * dt; f.cd -= dt; }
   beatStep(dt);
-  if (phase !== G.phase) {
-    G.phase = phase;
-    say(heart ? (phase === 2 ? 'FEVER SPIKES! WATCH THE STRIPES' : 'FEVER SURGES FROM THE CORE!') : (phase === 2 ? 'SICK SACS SPIT FASTER! AVOID SLIME' : 'COUGHING FITS! BRACE YOURSELF'));
-    sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200);
-  }
+  if (phase !== G.phase) { G.phase = phase; say(phase === 2 ? T.p2 : T.p3); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200); }
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
     G.sabT = Math.max(6, 15 - G.t / 40) * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
     const n = 1 + (G.t > 150 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
-    if (G.t < 60 || Math.random() < 0.3) say(heart ? 'SABOTEURS! THEY JAM THE VALVES' : 'SABOTEURS! THEY CLOG THE AIR SACS');
+    if (G.t < 60 || Math.random() < 0.3) say(T.sab);
   }
-  if (heart) heartStep(dt, alive, phase); else lungStep(dt, alive, phase);
-  if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say(heart ? 'RHYTHM FAILING! POKE THE VALVES' : 'OXYGEN LOW! POKE THE SACS OPEN'); } else if (O > 0.5) G.lowWarn = false;
-  if (O < 0.15) { G.suffT += dt; if (G.suffT >= 15) endGame(false, heart ? 'CARDIAC ARREST' : 'THE LUNGS COLLAPSED'); }
+  if (lvKey === 'heart') heartStep(dt, alive, phase); else if (lvKey === 'brain') brainStep(dt, alive, phase); else lungStep(dt, alive, phase);
+  if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say(T.low); } else if (O > 0.5) G.lowWarn = false;
+  if (O < 0.15) { G.suffT += dt; if (G.suffT >= 15) endGame(false, T.end); }
   else G.suffT = Math.max(0, G.suffT - dt * 2);
+}
+
+// Brain: sick synapses discharge lightning along the neuron lines (telegraphed lanes) and breed sparks. Dark synapses
+// stop lighting their area, so the level goes dark; phase 3 adds storms that fire along several lines at once.
+function brainStep(dt, alive, phase) {
+  const link = f => { const e = G.edges.filter(([a, b]) => a === f.i || b === f.i); if (!e.length) return null; const [a, b] = e[Math.floor(Math.random() * e.length)]; return G.fix[a === f.i ? b : a]; };
+  const arc = (f, o, warn) => G.beams.push({ x: f.x, y: f.y, a: Math.atan2(o.y - f.y, o.x - f.x), len: dist(f, o), w: 12, t: 0, warn, fire: 0.7, fired: false, c: 1 });
+  for (const f of G.fix) {
+    if (f.st === 0) { f.spawnMax = 0; continue; }
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    f.rayT = (f.rayT == null ? rand(3, 8) : f.rayT) - dt;
+    if (f.rayT <= 0) {
+      f.rayT = (f.st === 2 ? 7 : 12) * fast * rand(0.85, 1.15);
+      const o = link(f);
+      if (o && G.beams.length < 8) {
+        arc(f, o, phase >= 2 ? 1.1 : 1.4); sfx('charge', 120, 1.2, 'sawtooth', 0.03, 300);
+        if (!G.rayWarned) { G.rayWarned = true; say('ARCS RUN ALONG THE NEURON LINES'); }
+      }
+    }
+    sickSpawn(f, dt, fast, 'spark');
+  }
+  if (phase >= 3) {   // storm: several lines light up at once
+    G.coughT -= dt;
+    if (G.coughT <= 0 && G.edges.length) {
+      G.coughT = rand(22, 30);
+      const pick = G.edges.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+      for (const [a, b] of pick) arc(G.fix[a], G.fix[b], 1.6);
+      say('STORM! GET OFF THE LINES'); sfx('charge', 100, 1.6, 'sawtooth', 0.03, 260);
+    }
+  }
 }
 
 function lungStep(dt, alive, phase) {
@@ -1184,6 +1234,27 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
   drawLash(bx, by, bx + Math.cos(a) * len, by + Math.sin(a) * len, 2, col, '#12204a', null, p.idx);
 }
 
+// brain: the level is dark; only players, allies and lit synapses give light. Dark synapses mean dark corners where
+// viruses hide. Lightning flashes briefly light everything.
+let darkC = null;
+function drawDarkness() {
+  if (!darkC) darkC = document.createElement('canvas');
+  if (darkC.width !== VIEW_W || darkC.height !== VIEW_H) { darkC.width = VIEW_W; darkC.height = VIEW_H; }
+  const g = darkC.getContext('2d'), flash = G.beams.some(b => b.c && b.t >= b.warn && b.t < b.warn + 0.12);
+  g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, VIEW_W, VIEW_H);
+  g.fillStyle = 'rgba(4,2,20,' + (flash ? 0.35 : [0, 0.62, 0.72, 0.8][G.phase] || 0.62) + ')'; g.fillRect(0, 0, VIEW_W, VIEW_H);
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = 'rgba(0,0,0,0.3)';
+  const light = (x, y, r) => {
+    x = Math.round(x - cam.x + shx); y = Math.round(y - cam.y + shy);
+    if (x < -r || y < -r || x > VIEW_W + r || y > VIEW_H + r) return;
+    for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x, y, r * (1 - k * 0.18), 0, 6.283); g.fill(); }
+  };
+  for (const p of players) if (!p.down) light(p.x, p.y, 78);
+  for (const f of G.fix) if (f.st < 2) light(f.x, f.y, f.st === 0 ? 120 : 56);
+  for (const u of G.units) if (u.team === 'i') light(u.x, u.y, 24);
+  ctx.drawImage(darkC, 0, 0);
+}
+
 function render() {
   if (state === 'lobby') { drawLobby(); return; }
   // camera
@@ -1235,6 +1306,11 @@ function render() {
     } else {   // the core, beating
       const pu = beatPulse(), cx = HEART_C.x - cam.x + shx, cy = HEART_C.y - cam.y + shy;
       for (let i = 0; i < 40; i++) { const t = i / 40 * 6.283; rect(cx + Math.cos(t) * (30 + 6 * pu), cy + Math.sin(t) * (30 + 6 * pu), 2, 2, '#ff6070', 0.25 + 0.3 * pu); }
+    }
+    if (G.edges.length) for (const [a, b] of G.edges) {   // neuron lines: bright with moving pulses when both ends are lit
+      const A = G.fix[a], B = G.fix[b], ok = A.st === 0 && B.st === 0, l = dist(A, B), n = Math.floor(l / 4);
+      for (let k = 1; k < n; k++) { const t = k / n; rect(A.x + (B.x - A.x) * t - cam.x + shx, A.y + (B.y - A.y) * t - cam.y + shy, 1, 1, ok ? '#7fd0ff' : '#6a4a98', ok ? 0.45 : 0.22 + 0.2 * Math.sin(G.t * 9 + k)); }
+      if (ok) for (let k = 0; k < 2; k++) { const t = (G.t * 0.35 + k / 2) % 1; rect(A.x + (B.x - A.x) * t - cam.x + shx - 1, A.y + (B.y - A.y) * t - cam.y + shy - 1, 3, 3, '#e8f8ff', 0.9); }
     }
     const br = breathY(), bp = beatPulse();
     for (const f of G.fix) {
@@ -1332,15 +1408,15 @@ function render() {
     ctx.save(); ctx.translate(b.x - cam.x + shx, b.y - cam.y + shy); ctx.rotate(b.a);
     if (!firing) {
       const k = b.t / b.warn, pu = 0.5 + 0.5 * Math.sin(b.t * 18);
-      ctx.fillStyle = '#ff4a1a'; ctx.globalAlpha = 0.1 + 0.3 * k * (0.6 + 0.4 * pu); ctx.fillRect(16, -b.w / 2, b.len, b.w);
-      ctx.fillStyle = '#ffe070'; ctx.globalAlpha = 0.3 + 0.5 * k;
+      ctx.fillStyle = b.c ? '#3a5aff' : '#ff4a1a'; ctx.globalAlpha = 0.1 + 0.3 * k * (0.6 + 0.4 * pu); ctx.fillRect(16, -b.w / 2, b.len, b.w);
+      ctx.fillStyle = b.c ? '#bfe0ff' : '#ffe070'; ctx.globalAlpha = 0.3 + 0.5 * k;
       for (let d = 16; d < b.len; d += 14) { ctx.fillRect(d, -b.w / 2, 5, 2); ctx.fillRect(d + 7, b.w / 2 - 2, 5, 2); }
       ctx.globalAlpha = 0.5 + 0.5 * pu; ctx.fillRect(16, -b.w / 2, b.len, 1); ctx.fillRect(16, b.w / 2 - 1, b.len, 1);
     } else {
       const f = 0.8 + 0.2 * Math.sin(b.t * 70);
-      ctx.fillStyle = '#ff6a1a'; ctx.globalAlpha = 0.5 * f; ctx.fillRect(8, -b.w / 2 - 3, b.len, b.w + 6);
-      ctx.fillStyle = '#ffb040'; ctx.globalAlpha = 0.95; ctx.fillRect(8, -b.w / 2 + 1, b.len, b.w - 2);
-      ctx.fillStyle = '#fff6c0'; ctx.fillRect(8, -2, b.len, 4);
+      ctx.fillStyle = b.c ? '#5a8aff' : '#ff6a1a'; ctx.globalAlpha = 0.5 * f; ctx.fillRect(8, -b.w / 2 - 3, b.len, b.w + 6);
+      ctx.fillStyle = b.c ? '#a0c8ff' : '#ffb040'; ctx.globalAlpha = 0.95; ctx.fillRect(8, -b.w / 2 + 1, b.len, b.w - 2);
+      ctx.fillStyle = b.c ? '#f0f8ff' : '#fff6c0'; ctx.fillRect(8, -2, b.len, 4);
     }
     ctx.restore(); ctx.globalAlpha = 1;
   }
@@ -1399,6 +1475,7 @@ function render() {
       if (x > 0 && x < VIEW_W && y > 0 && y < VIEW_H) rect(x, y, 2, 2, i % 3 ? '#ff8a98' : '#ffd0d6', 0.5);
     }
   }
+  if (lvKey === 'brain') drawDarkness();
   if (lvKey === 'lung') {
     const br = breathY();
     if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
@@ -1458,13 +1535,15 @@ function drawHud() {
   const left = Math.max(0, lvl().time - G.t), mm = Math.floor(left / 60), ss = Math.floor(left % 60);
   drawText(mm + ':' + String(ss).padStart(2, '0'), VIEW_W / 2, 4, '#fff', 2, 'c');
   if (G.fix.length) {
-    const heart = lvKey === 'heart', O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
-    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : '#4ad8ff');
-    drawText(warn ? (heart ? 'ARREST IN ' : 'COLLAPSE IN ') + Math.max(0, Math.ceil(15 - G.suffT)) : (heart ? 'RHYTHM ' : 'OXYGEN ') + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
+    const heart = lvKey === 'heart', T = lvl().txt, O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
+    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
+    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(15 - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
     if (heart) {
       const fv = Math.round((1 - O) * 100), pu = beatPulse(), ic = SPR.heartIcon, k = 1 + 0.5 * pu;
       ctx.drawImage(ic, Math.round(VIEW_W / 2 - 22 - ic.width * k / 2), Math.round(VIEW_H - 14 - (k - 1) * 4), Math.round(ic.width * k), Math.round(ic.height * k));
       drawText('FEVER ' + fv + '%', VIEW_W / 2 + 4, VIEW_H - 12, fv > 60 ? '#ff6a5a' : fv > 30 ? '#ffb060' : '#ffd0d6', 1, 'l');
+    } else if (lvKey === 'brain') {
+      drawText('LIT ' + G.fix.filter(f => f.st === 0).length + '/' + G.fix.length, VIEW_W / 2, VIEW_H - 12, '#bfd0ff', 1, 'c');
     } else {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
@@ -1475,6 +1554,7 @@ function drawHud() {
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
   drawText('KILLS ' + G.kills, VIEW_W - 4, 11, '#fff', 1, 'r');
   drawText('TURNED ' + G.conv, VIEW_W - 4, 18, '#7fe8ff', 1, 'r');
+  if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + lvl().name, VIEW_W - 4, 25, '#ffe070', 1, 'r');
   // organs
   organs.forEach((o, i) => {
     const x = 4 + i * 17, y = VIEW_H - 12, inf = o.team === 'v';
@@ -1489,7 +1569,7 @@ function drawHud() {
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
-    .concat(G.fix.filter(f => f.st > 0).map(f => ({ x: f.x, y: f.y, tag: f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VLV' : 'SAC', col: f.st > 1 ? '#ff8a7a' : '#ffd060', tc: '#ffd88a' })))
+    .concat(G.fix.filter(f => f.st > 0).map(f => ({ x: f.x, y: f.y, tag: f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VLV' : f.kind === 'syn' ? 'SYN' : 'SAC', col: f.st > 1 ? '#ff8a7a' : '#ffd060', tc: '#ffd88a' })))
     .concat(players.filter(p => p.down).map(p => ({ x: p.x, y: p.y, tag: 'P' + (p.idx + 1), col: '#7fffd0', tc: '#7fffd0' })));
   for (const o of marks) {
     const sx = o.x - cam.x, sy = o.y - cam.y;
@@ -1553,7 +1633,7 @@ function drawTitle() {
     ? ['TOUCH: LEFT STICK MOVES, RIGHT STICK AIMS, TAP A WEAK SPOT TO POKE', 'ONLINE CO-OP WORKS BETWEEN PHONES AND COMPUTERS']
     : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES (F: TOGGLE SHOOTING)', 'LOCAL CO-OP: P1 WASD + MOUSE   P2 ARROWS + IJKL (OR GAMEPADS)'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS THE VIRUS INTO AN ALLY. CO-OP: DISTRACT + POKE!',
-    'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
+    lvSel === 'campaign' ? 'CAMPAIGN: BRAIN, LUNGS, THEN HEART. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
   if (compact) lines = [lines[0], lines[2], lines[4]];
   lines.forEach((t, i) => drawText(t, c, (compact ? 56 : 106) + i * 10, i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
@@ -1561,7 +1641,7 @@ function drawTitle() {
   {
     const b = lvBtn(), h = hov === 5 && !touchUI;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#7a6a30'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
-    drawText('LEVEL: ' + lvl().name + (touchUI ? '' : ' [L]'), c, b.y + 3, '#ffe070', 1, 'c');
+    drawText('LEVEL: ' + (lvSel === 'campaign' ? 'CAMPAIGN' : lvl().name) + (touchUI ? '' : ' [L]'), c, b.y + 3, '#ffe070', 1, 'c');
   }
   for (let i = 0; i < 4; i++) {
     const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
@@ -1635,17 +1715,19 @@ function drawOver() {
   const win = G.result === 'win';
   rect(0, 0, VIEW_W, VIEW_H, win ? '#06223a' : '#220608', 0.75);
   const c = VIEW_W / 2;
-  drawText(win ? 'HOST SAVED!' : 'INFECTION WINS', c, 40, win ? '#7fe8ff' : '#9ae05a', 4, 'c');
+  const more = camp && win && camp.i < CAMPAIGN.length - 1;
+  drawText(more ? 'ORGAN SAVED!' : win ? 'HOST SAVED!' : 'INFECTION WINS', c, 40, win ? '#7fe8ff' : '#9ae05a', 4, 'c');
   drawText(G.reason, c, 70, '#fff', 1, 'c');
+  if (camp) drawText(more ? 'NEXT: ' + LEVELS[CAMPAIGN[camp.i + 1]].name + '. UPGRADES CARRY OVER' : win ? 'CAMPAIGN COMPLETE!' : 'CAMPAIGN ' + (camp.i + 1) + '/' + CAMPAIGN.length + ': ' + lvl().name, c, 80, win ? '#ffe070' : '#ffd88a', 1, 'c');
   const saved = organs.filter(o => o.team === 'i').length;
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
-    .forEach(([k, v], i) => { drawText(k, c - 10, 95 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, 95 + i * 11, '#fff'); });
-  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : 'CLICK TO TRY AGAIN', c, Math.min(175, VIEW_H - 24), '#fff', isGuest() ? 1 : 2, 'c');
+    .forEach(([k, v], i) => { drawText(k, c - 10, 98 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, 98 + i * 11, '#fff'); });
+  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, Math.min(175, VIEW_H - 24), '#fff', isGuest() ? 1 : 2, 'c');
 }
 
 // ---------------------------------------------------------------- online
 // Host-authoritative: the host simulates everything. The guest sends its input and renders snapshots.
-const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember'];
+const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember', 'spark'];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
@@ -1727,7 +1809,7 @@ function hostSend(dt) {
   net.snapT -= dt;
   if (net.snapT > 0) return;
   net.snapT = 0.05;   // 20 snapshots / second
-  relay({ k: 'snap', lv: lvKey, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
+  relay({ k: 'snap', lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)]]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
@@ -1735,12 +1817,14 @@ function hostSend(dt) {
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
-    bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire)]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
+    bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
   evq = [];
 }
 
 function applySnap(d) {
   if (!net.got) { net.got = true; coop = true; lobby = null; if (LEVELS[d.lv]) lvKey = d.lv; newGame(true); }
+  if (LEVELS[d.lv] && d.lv !== lvKey) { lvKey = d.lv; newGame(true); net.units.clear(); }   // the host moved on to the next campaign level
+  camp = d.cp ? { i: d.cp[0] } : null;
   const prevState = state;
   state = d.st;
   if (state === 'over' && prevState !== 'over') G.overT = 0;
@@ -1779,7 +1863,7 @@ function applySnap(d) {
   G.gems = d.gm.map((a, i) => ({ x: a[0], y: a[1], ph: i * 0.7 }));
   G.slimes = d.sl.map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3] }));
   G.globs = d.gl.map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5] }));
-  G.beams = d.bm.map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], w: a[4], t: a[5], warn: a[6], fire: a[7] }));
+  G.beams = d.bm.map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], w: a[4], t: a[5], warn: a[6], fire: a[7], c: a[8] }));
   G.pills = d.pi.map(a => ({ x: a[0], y: a[1], life: a[2] }));
   G.vacuumT = d.vac;
   for (const e of d.ev || []) {
@@ -1848,7 +1932,7 @@ requestAnimationFrame(frame);
 }
 
 // small hook for automated testing
-window.__dbg = { setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, setLevel(k) { lvKey = k; newGame(false); }, get fix() { return G.fix; }, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
+window.__dbg = { cont: overContinue, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k; camp = null; newGame(false); }, get fix() { return G.fix; }, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
   start: startGame, step(n, dt = 1 / 60) { for (let i = 0; i < n && state === 'play'; i++) update(dt); },
   pick: i => { if (state === 'levelup') chooseUpgrade(i); } };
 })();

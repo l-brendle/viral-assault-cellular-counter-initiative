@@ -172,6 +172,37 @@ function makeHeartBackground() {
   return c;
 }
 
+// brain tissue: deep indigo with faint wandering neuron fibres and a few glowing specks
+function makeBrainBackground() {
+  const S = 64, c = mk(S, S), g = c.getContext('2d');
+  px(g, 0, 0, '#150c30', S, S);
+  for (let i = 0; i < 12; i++) {
+    let x = srand() * S, y = srand() * S, a = srand() * 6.283;
+    for (let k = 0; k < 26; k++) {
+      a += (srand() - 0.5) * 0.9; x += Math.cos(a); y += Math.sin(a);
+      for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) px(g, Math.round(x + ox), Math.round(y + oy), k % 5 ? '#241a56' : '#2f2470');
+    }
+  }
+  for (let i = 0; i < 10; i++) { const x = Math.floor(srand() * S), y = Math.floor(srand() * S); px(g, x, y, '#3a2c80', 2, 2); }
+  for (let i = 0; i < 14; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), srand() < 0.5 ? '#2e8aa8' : '#0c0620');
+  return c;
+}
+
+// synapse node: a cell body with dendrites. 0 = lit (glowing cyan), 1 = dim (flickering violet), 2 = dark (grey, slimy)
+function makeSynapse(st) {
+  const c = mk(38, 38), g = c.getContext('2d');
+  const body = ['#6fd8ff', '#8a78c8', '#4a4a58'][st], light = ['#d0f4ff', '#c0b0f0', '#7a7a88'][st], dark = ['#2a8ac0', '#52408a', '#2a2a34'][st], line = ['#9ae8ff', '#6a5aa8', '#3a3a48'][st];
+  for (let k = 0; k < 7; k++) {
+    const a = k / 7 * 6.283 + 0.4;
+    for (let d = 6; d <= 16; d++) px(g, 19 + Math.cos(a) * d, 19 + Math.sin(a) * d, line);
+    px(g, 19 + Math.cos(a) * 16 - 1, 19 + Math.sin(a) * 16 - 1, light, 3, 3);
+  }
+  disc(g, 19, 19, 9, '#0c0a24'); disc(g, 19, 19, 8, dark); disc(g, 18, 18, 7, body); disc(g, 15, 15, 3, light);
+  px(g, 21, 22, '#0c0a24', 3, 3);
+  if (st) for (const [x, y] of [[13, 24], [25, 14], [22, 25]]) px(g, x, y, '#9ae05a', 2, 2);
+  return c;
+}
+
 // heart valve: a ring with two leaflets. 0 = open, 1 = stiff, 2 = stuck shut and slimy
 function makeValve(st) {
   const c = mk(36, 34), g = c.getContext('2d');
@@ -207,6 +238,8 @@ function makePacemaker(st) {
   SPR.virus.slimeling = makeBlob({ r: 4, body: '#8fdc4a', light: '#c8f58a', dark: '#4f9a24', outline: '#2f6a16', face: true });
 
   SPR.virus.ember = makeBlob({ r: 4, body: '#ff8a30', light: '#ffd070', dark: '#c04010', outline: '#4a1004', spikeColor: '#fff0a0', spikes: 6, spikeLen: 2, face: true });
+
+  SPR.virus.spark = makeBlob({ r: 4, body: '#7aa8ff', light: '#c8e0ff', dark: '#3a5ac0', outline: '#101a50', spikeColor: '#e0f0ff', spikes: 4, spikeLen: 3, face: true });
 
   SPR.player = makeFighter('#4aa8ff');
   SPR.ally = makeFighter('#3fd6a6');
@@ -255,6 +288,8 @@ function makePacemaker(st) {
   SPR.valve = [0, 1, 2].map(makeValve);
   SPR.pace = [0, 1, 2].map(makePacemaker);
   SPR.bgHeart = makeHeartBackground();
+  SPR.bgBrain = makeBrainBackground();
+  SPR.syn = [0, 1, 2].map(makeSynapse);
   SPR.heartIcon = fromRows(['.rr.rr.', 'rhrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: '#ff4a62', h: '#ffc0c8' });
 })();
 
