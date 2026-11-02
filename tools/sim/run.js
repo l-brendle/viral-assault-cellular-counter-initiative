@@ -10,7 +10,7 @@
 const { Worker, isMainThread, parentPort } = require('worker_threads');
 const { loadGame } = require('./env');
 const { makeBot } = require('./bots');
-const CAMPAIGN = ['brain', 'lung', 'heart'];
+const CAMPAIGN = ['brain', 'lung', 'heart', 'stomach', 'blood'];
 
 const scalar = (D, grace = 15, K = D, A = K) => ({ spawn: 1 / D, swarm: D, dmg: D, hp: Math.sqrt(D), sab: 1 / K, arc: 1 / A, grace });   // D: general pressure, K: sabotage + hazard pressure
 

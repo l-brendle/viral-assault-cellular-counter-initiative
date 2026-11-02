@@ -42,6 +42,12 @@ function makeBot(name, seed, extra) {
       const dd = Math.hypot(P.x - sl.x, P.y - sl.y);
       if (dd < sl.r + sk.slimeR) { hx += (P.x - sl.x) / (dd || 1) * 2.5; hy += (P.y - sl.y) / (dd || 1) * 2.5; }
     }
+    for (const sl of G.holes || []) {   // craters of acid
+      if (!noticed(sl)) continue;
+      const dd = Math.hypot(P.x - sl.x, P.y - sl.y);
+      if (dd < sl.r + sk.slimeR) { hx += (P.x - sl.x) / (dd || 1) * 2.5; hy += (P.y - sl.y) / (dd || 1) * 2.5; }
+    }
+    if (P.y > d.acid && !d.safe(P) && noticed(P)) hy -= 2.5;   // stomach acid: climb out of it
     for (const gl of G.globs) {
       if (!noticed(gl)) continue;
       const dd = Math.hypot(P.x - gl.tx, P.y - gl.ty);

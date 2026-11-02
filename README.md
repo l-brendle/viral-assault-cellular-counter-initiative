@@ -23,7 +23,7 @@ Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
 ## Levels
 Pick the level on the title screen (**L** or the LEVEL button). Online co-op uses the host's level.
-- **Campaign** (default) - Brain, then Lungs, then Heart. Your upgrades and level carry over to the next organ. A win
+- **Campaign** (default) - Brain, Lungs, Heart, Stomach, then Bloodstream. Your upgrades and level carry over to the next organ. A win
   takes you on, a loss retries that organ, and the final win starts the campaign again. In online co-op the guest
   follows the host from level to level.
 - **Classic** - defend five organs for 6 minutes.
@@ -51,6 +51,18 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   **FEVER** readout is 100% minus the rhythm; if the rhythm stays near zero for 15 seconds it is cardiac arrest.
   Phase 2 (1:30) fires rays faster, phase 3 (3:20) adds fever surges: a ring of rays from the core, with safe lanes
   between them.
+
+- **Stomach** (5 minutes) - eight mucus glands that saboteurs erode (poke them back to **sealed**). **Acid** rises from
+  the bottom in waves, and every weakened gland raises it; standing in it burns you, but the ground around a sealed gland
+  stays safe. Eroded glands breed little **H. pylori**. The boss is the **Ulcer**: it eats acid craters into the wall as it
+  moves and fires a ring of acid balls (the gaps between them are safe).
+
+- **Bloodstream** (5 minutes) - eight vessels that saboteurs clot. The map is four **lanes** with a current flowing in
+  alternating directions that carries you, allies and viruses along; it grows stronger in phase 2 and swings back and forth
+  in phase 3. Clotted vessels breed **toxins**. The boss is **Sepsis**: it sheds saboteurs that go for the vessels and
+  shoots clots at you.
+
+Only the Brain has the **Man Flu** boss; each other level has its own.
 
 ## Infected organs fight back
 - **Lungs** lob **slime** onto the map (a marker shows where it lands). Anything that touches a puddle - you, allies or

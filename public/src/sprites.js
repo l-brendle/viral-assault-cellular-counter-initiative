@@ -284,6 +284,68 @@ function makePacemaker(st) {
   return c;
 }
 
+// stomach wall: warm orange-brown with wavy folds (rugae) and wet highlights
+function makeStomachBackground() {
+  const S = 64, c = mk(S, S), g = c.getContext('2d');
+  px(g, 0, 0, '#4a2e12', S, S);
+  for (let i = 0; i < 7; i++) {
+    const y0 = srand() * S, ph = srand() * 6.283, amp = 2 + srand() * 3;
+    for (let x = 0; x < S; x++) { const y = Math.round(y0 + Math.sin(x / S * 6.283 * 2 + ph) * amp); px(g, x, y, '#5e3a18', 1, 3); px(g, x, y + 3, '#2e1a08'); }
+  }
+  for (let i = 0; i < 40; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), srand() < 0.5 ? '#7a4e22' : '#2a1606');
+  for (let i = 0; i < 8; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), '#c89a50', 2, 1);
+  return c;
+}
+// blood plasma: deep red with long horizontal streaks and a few drifting cells
+function makeBloodBackground() {
+  const S = 64, c = mk(S, S), g = c.getContext('2d');
+  px(g, 0, 0, '#4a0c1c', S, S);
+  for (let i = 0; i < 26; i++) {
+    const y = Math.floor(srand() * S), x = srand() * S, len = 8 + Math.floor(srand() * 22), col = ['#5c1224', '#380a14', '#6e1a30'][Math.floor(srand() * 3)];
+    for (let k = 0; k < len; k++) px(g, (x + k) % S, y, col);
+  }
+  for (let i = 0; i < 5; i++) { const x = Math.floor(srand() * S), y = Math.floor(srand() * S); disc(g, x, y, 3, '#7a1830'); disc(g, x, y, 1, '#4a0c1c'); }
+  for (let i = 0; i < 30; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), srand() < 0.5 ? '#8a2038' : '#2a0610');
+  return c;
+}
+// stomach gland: a pore ringed with protective mucus. 0 = sealed (thick pale mucus), 1 = leaking (thin, acid dripping), 2 = eroded (swallowed)
+function makeGland(st) {
+  if (st === 2) return makeInfectedBlob(13, 11, 4, false);
+  const c = mk(36, 36), g = c.getContext('2d');
+  const ring = ['#f0e090', '#c8b060', '#6f8a50'][st], light = ['#fffbd0', '#f0e0a0', '#a0b878'][st];
+  disc(g, 18, 18, 15, '#3a2408'); disc(g, 18, 18, 14, ring); disc(g, 18, 18, 10, '#5a3a14');
+  const pore = [3, 6, 8][st]; disc(g, 18, 18, pore, '#1c0e04');
+  px(g, 9, 9, light, 4, 2); px(g, 10, 11, light, 2, 2);
+  if (st === 0) for (const [x, y] of [[26, 24], [12, 25], [24, 11]]) px(g, x, y, light, 2, 2);
+  if (st === 1) for (const [x, y, h] of [[16, 26, 5], [22, 25, 4], [13, 23, 3]]) { px(g, x, y, '#d8e830', 2, h); px(g, x, y + h, '#f8f880', 2, 1); }
+  return c;
+}
+// blood vessel junction seen end-on: a ring of wall around the lumen. 0 = open, 1 = narrowed (platelets piling up), 2 = clotted (swallowed)
+function makeVessel(st) {
+  if (st === 2) return makeInfectedBlob(13, 11, 4, true);
+  const c = mk(36, 36), g = c.getContext('2d');
+  const wall = ['#e0505a', '#c06a60', '#6f8a50'][st], light = ['#ffa0a8', '#e8a090', '#a0b878'][st];
+  disc(g, 18, 18, 15, '#3a0810'); disc(g, 18, 18, 14, wall); disc(g, 15, 14, 4, light);
+  const lum = [9, 5, 0][st]; disc(g, 18, 18, lum + 1, '#2a0610'); disc(g, 18, 18, lum, '#8a1424');
+  px(g, 14, 16, '#c03048', 3, 2); px(g, 21, 19, '#c03048', 3, 2);
+  if (st === 1) for (const [x, y] of [[13, 21], [22, 14], [19, 24], [24, 20]]) { px(g, x, y, '#fff0d0', 2, 2); px(g, x + 1, y + 1, '#d8a870'); }
+  return c;
+}
+// the bosses share the Man Flu recipe: huge spiky body, angry slit eyes, toothy snarl
+function makeBoss(o) {
+  const c = makeBlob({ r: 22, body: o.body, light: o.light, dark: o.dark, outline: o.outline, spikeColor: o.spike, spikes: 16, spikeLen: 6, spots: true });
+  const g = c.getContext('2d'), cx = Math.floor(c.width / 2), cy = Math.floor(c.height / 2);
+  for (const sd of [-1, 1]) {
+    const ex = cx + sd * 8 - 3;
+    px(g, ex - 1, cy - 9, '#2a0a08', 8, 8); px(g, ex, cy - 8, o.eye, 6, 6); px(g, ex + 2, cy - 8, '#ff2010', 2, 6);
+    for (let i = 0; i < 10; i++) px(g, cx + sd * (13 - i) - (sd > 0 ? 1 : 0), cy - 14 + Math.floor(i * 0.7), o.outline, 1, 3);
+  }
+  px(g, cx - 10, cy + 6, '#2a0a08', 20, 8);
+  for (let i = 0; i < 5; i++) { px(g, cx - 9 + i * 4, cy + 6, '#fff', 2, 3); px(g, cx - 7 + i * 4, cy + 11, '#fff', 2, 3); }
+  o.deco(g, cx, cy);
+  return c;
+}
+
 (function build() {
   // viruses: spiky blobs in three sizes
   SPR.virus.basic = makeBlob({ r: 6, body: '#6ccf3c', light: '#a8f060', dark: '#3f9a2a', outline: '#1d4a1a', spikeColor: '#e8ff7a', spikes: 8, spikeLen: 3, face: true });
@@ -299,6 +361,12 @@ function makePacemaker(st) {
   SPR.virus.spark = makeBlob({ r: 4, body: '#7aa8ff', light: '#c8e0ff', dark: '#3a5ac0', outline: '#101a50', spikeColor: '#e0f0ff', spikes: 4, spikeLen: 3, face: true });
 
   SPR.virus.manflu = makeManFlu();
+  SPR.virus.pylori = makeBlob({ r: 4, body: '#d8b840', light: '#fff0a0', dark: '#a07a18', outline: '#3a2a04', spikeColor: '#fff8c0', spikes: 5, spikeLen: 3, face: true });
+  SPR.virus.toxin = makeBlob({ r: 4, body: '#c03048', light: '#ff8098', dark: '#7a1428', outline: '#2a0410', spikeColor: '#ffc0d0', spikes: 7, spikeLen: 2, face: true });
+  SPR.virus.ulcer = makeBoss({ body: '#e08a30', light: '#ffc070', dark: '#a04a10', outline: '#3a1604', spike: '#fff0a0', eye: '#ffe040',
+    deco: (g, cx, cy) => { for (const [x, y, r] of [[-14, -2, 3], [13, -4, 2], [-6, 16, 3], [10, 15, 2]]) { disc(g, cx + x, cy + y, r + 1, '#3a1604'); disc(g, cx + x, cy + y, r, '#7a2a08'); } } });
+  SPR.virus.sepsis = makeBoss({ body: '#a040b0', light: '#e090f0', dark: '#601878', outline: '#240838', spike: '#ffc0f0', eye: '#ff6080',
+    deco: (g, cx, cy) => { for (const [x, y] of [[-15, -6], [12, -8], [-12, 12], [14, 10]]) for (let k = 0; k < 6; k++) px(g, cx + x + k, cy + y + (k % 2), '#e02050'); } });
   SPR.pet = makePet();
 
   SPR.player = makeFighter('#4aa8ff');
@@ -349,6 +417,10 @@ function makePacemaker(st) {
   SPR.pace = [0, 1, 2].map(makePacemaker);
   SPR.bgHeart = makeHeartBackground();
   SPR.bgBrain = makeBrainBackground();
+  SPR.bgStomach = makeStomachBackground();
+  SPR.bgBlood = makeBloodBackground();
+  SPR.gland = [0, 1, 2].map(makeGland);
+  SPR.vessel = [0, 1, 2].map(makeVessel);
   SPR.syn = [0, 1, 2].map(makeSynapse);
   SPR.heartIcon = fromRows(['.rr.rr.', 'rhrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: '#ff4a62', h: '#ffc0c8' });
 })();

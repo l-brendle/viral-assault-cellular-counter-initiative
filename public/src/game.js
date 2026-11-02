@@ -13,6 +13,10 @@ const TYPES = {
   ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
   spark: { r: 4, hp: 8, speed: 52, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#7aa8ff' },   // brain level: spawned by sick synapses
   manflu: { r: 22, hp: 900, speed: 30, dmg: 11, arc: 0.4, xp: 14, ally: 40, col: '#a8c83a' },   // brain level boss: harmless in the end, if you let it
+  pylori: { r: 4, hp: 8, speed: 44, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#d8b840' },   // stomach level: bred by eroded glands
+  toxin: { r: 4, hp: 8, speed: 50, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#c03048' },   // bloodstream level: bred by clotted vessels
+  ulcer: { r: 22, hp: 1000, speed: 26, dmg: 12, arc: 0.4, xp: 14, ally: 40, col: '#e08a30' },   // stomach boss: H. pylori, eats craters into the wall
+  sepsis: { r: 22, hp: 1000, speed: 30, dmg: 11, arc: 0.4, xp: 14, ally: 40, col: '#a040b0' },   // bloodstream boss: sends saboteurs out to clot the vessels
   saboteur: { r: 5, hp: 30, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -24,11 +28,11 @@ const ORGANS = [
 ];
 // Levels: each is the inside of one organ. `sacs` are fixables (things to poke back into shape) placed in the world.
 const LEVELS = {
-  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.18, swarm: 0.85, dmg: 0.85, hp: 0.92, arc: 1.18 } } },
+  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.35, swarm: 0.65, dmg: 0.65, hp: 0.85, arc: 1.35 } } },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
     tune: { solo: { spawn: 0.56, swarm: 1.8, dmg: 1.8, hp: 1.34, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
-    ph: [120, 240], boss: 240,
+    ph: [120, 240], boss: 240, bossType: 'manflu',
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
@@ -40,11 +44,24 @@ const LEVELS = {
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
     tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.29, arc: 0.43 }, camp: { spawn: 0.35, swarm: 2.85, dmg: 2.85, hp: 1.69, sab: 0.29, arc: 0.37 } },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
+  stomach: { name: 'STOMACH', time: 300, bg: 'bgStomach', clear: '#1c1206', edge: '#d0a030', win: 'THE STOMACH SETTLED', intro: 'STOMACH: KEEP THE GLANDS SEALED. SEALED GLANDS SHIELD FROM ACID',
+    txt: { bar: 'MUCUS', warn: 'PERFORATION IN', end: 'THE STOMACH WALL GAVE WAY', low: 'MUCUS LOW! POKE THE GLANDS SEALED', sab: 'SABOTEURS! THEY ERODE THE GLANDS', p2: 'THE ACID RISES! STAY NEAR SEALED GLANDS', p3: 'ACID FLOOD! GET OFF THE FLOOR' },
+    tune: { solo: { spawn: 0.74, swarm: 1.35, dmg: 1.35, hp: 1.16, sab: 0.74, arc: 0.74 }, camp: { spawn: 0.36, swarm: 2.80, dmg: 2.80, hp: 1.67, sab: 0.36, arc: 0.36 } },
+    ph: [100, 200], boss: 200, bossType: 'ulcer',
+    hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'ACID RISES FROM THE BOTTOM AND BURNS YOU'], [26, 'SEALED GLANDS PROTECT THE GROUND AROUND THEM']],
+    fix: [[300, 200, 'gland'], [600, 170, 'gland'], [900, 200, 'gland'], [200, 470, 'gland'], [600, 450, 'gland'], [1000, 470, 'gland'], [360, 720, 'gland'], [840, 720, 'gland']] },
+  blood: { name: 'BLOODSTREAM', time: 300, bg: 'bgBlood', clear: '#1a0610', edge: '#e04a6a', win: 'THE BLOOD IS CLEAN', intro: 'BLOODSTREAM: KEEP THE VESSELS OPEN. THE CURRENT CARRIES EVERYONE',
+    txt: { bar: 'FLOW', warn: 'CIRCULATION LOSS IN', end: 'THE BLOOD STOPPED FLOWING', low: 'FLOW FAILING! CLEAR THE VESSELS', sab: 'SABOTEURS! THEY CLOT THE VESSELS', p2: 'THE CURRENT GROWS STRONGER!', p3: 'THE CURRENT SURGES BACK AND FORTH!' },
+    tune: { solo: { spawn: 0.95, swarm: 1.05, dmg: 1.05, hp: 1.02, sab: 0.95, arc: 0.95 }, camp: { spawn: 0.42, swarm: 2.40, dmg: 2.40, hp: 1.55, sab: 0.42, arc: 0.42 } },
+    ph: [100, 200], boss: 200, bossType: 'sepsis',
+    hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'THE CURRENT PUSHES EVERYTHING ALONG ITS LANE'], [26, 'POKE CLOTTED VESSELS OPEN TO KEEP THE BLOOD FLOWING']],
+    fix: [[250, 190, 'vessel'], [600, 120, 'vessel'], [950, 190, 'vessel'], [300, 450, 'vessel'], [900, 450, 'vessel'], [250, 710, 'vessel'], [600, 780, 'vessel'], [950, 710, 'vessel']] },
 };
-const FIXNAMES = { syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
+const BOSSES = { manflu: 'MAN FLU', ulcer: 'ULCER', sepsis: 'SEPSIS' };
+const FIXNAMES = { gland: ['SEALED', 'LEAKING', 'ERODED'], vessel: ['OPEN', 'NARROW', 'CLOTTED'], syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
 const LEVEL_KEYS = Object.keys(LEVELS);
-const CAMPAIGN = ['brain', 'lung', 'heart'];            // the campaign plays these in order, upgrades carry over
-const LEVEL_SEL = ['campaign', 'brain', 'lung', 'heart', 'classic'];
+const CAMPAIGN = ['brain', 'lung', 'heart', 'stomach', 'blood'];            // the campaign plays these in order, upgrades carry over
+const LEVEL_SEL = ['campaign', 'brain', 'lung', 'heart', 'stomach', 'blood', 'classic'];
 let lvSel = 'campaign';   // what the title screen has selected
 let lvKey = 'brain';      // the level that is actually loaded
 let camp = null;          // campaign progress while playing it: { i, S0 } (S0 = upgrades at the start of this level)
@@ -52,7 +69,11 @@ const lvl = () => LEVELS[lvKey];
 // per-level difficulty multipliers (spawn/swarm/sab/arc: >1 = fewer; dmg/hp: >1 = tougher), one set for playing the level on its
 // own and one for the campaign, where upgrades carried over from earlier levels make the player stronger
 const tuneSet = () => { const t = lvl().tune; return t && (camp && camp.S0 && t.camp ? t.camp : t.solo); };
-const ease = k => { const t = tuneSet(); return (t && t[k]) || 1; };
+const SOFT = 0.75;   // slower level-ups mean a weaker player at any moment, so every level's pressure is eased by this share of its tuning
+const ease = k => {
+  const t = tuneSet(), v = (t && t[k]) || 1;
+  return k === 'grace' ? v : 1 + (v - 1) * SOFT;
+};
 const GRACE = () => ease('grace') > 1 ? ease('grace') : 15;   // seconds the signal may stay below 15% before you lose
 
 const canvas = document.getElementById('c');
@@ -343,10 +364,10 @@ const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, 
 
 function newGame(co) {
   coop = !!co;
-  G = { fix: [], bolts: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], pb: [], pr: [], pg: [], ps: [], fp: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
+  G = { fix: [], bolts: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], pb: [], pr: [], pg: [], ps: [], fp: [], holes: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
         spawnT: 2, nextSwarm: 40, msg: '', msgT: 0, shake: 0, overT: 0, result: '', reason: '' };
   // team-wide progression: one level, one XP bar, one set of upgrades shared by everybody
-  S = { level: 1, xp: 0, next: 6, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
+  S = { level: 1, xp: 0, next: 8, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
   players = coop ? [mkPlayer(0, CFG.W / 2 - 16, 600), mkPlayer(1, CFG.W / 2 + 16, 600)] : [mkPlayer(0, CFG.W / 2, 600)];
   G.pet = hasPet ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null;
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
@@ -394,7 +415,7 @@ function addUnit(team, type, x, y) {
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
     weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(6, 18) : rand(1.5, 5), tail: null,
-    tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0, boss: type === 'manflu' };
+    tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0, boss: !!BOSSES[type] };
   G.units.push(u);
   return u;
 }
@@ -430,7 +451,7 @@ function kill(u) {
   u.dead = true;
   if (u.team === 'v') {
     G.kills++; dropGem(u.x, u.y, TYPES[u.type].xp);
-    if (u.boss) { for (let i = 0; i < 8; i++) dropGem(u.x + rand(-20, 20), u.y + rand(-20, 20), 3); G.shake = 6; say('MAN FLU DEFEATED!'); }
+    if (u.boss) { for (let i = 0; i < 8; i++) dropGem(u.x + rand(-20, 20), u.y + rand(-20, 20), 3); G.shake = 6; say(BOSSES[u.type] + ' DEFEATED!'); }
     burst(u.x, u.y, TYPES[u.type].col, 8); sfx('kill', 180, 0.08, 'square', 0.02, -80);
   } else burst(u.x, u.y, '#8fd0ff', 8);
 }
@@ -460,11 +481,12 @@ function convertOrgan(o) {
 }
 
 // ---------------------------------------------------------------- upgrades / xp
+const XP_K = 4 / 3;   // xp per level; a third more than the original curve means a quarter fewer level-ups
 function gainXp(v) { S.xp += v; checkLevel(); }
 function checkLevel() {
   if (state !== 'play' || S.xp < S.next) return;
   S.xp -= S.next; S.level++;
-  S.next = Math.round(4 + S.level * 4.5);
+  S.next = Math.round((4 + S.level * 4.5) * XP_K);
   S.res = Math.min(0.55, 1 - Math.pow(0.94, S.level - 1));   // capped: you can never become immune
   S.scale = Math.min(2.4, 1 + 0.08 * (S.level - 1));
   for (const p of players) { p.infection = Math.max(0, p.infection - 8); burst(p.x, p.y, '#8fd0ff', 24, 90); }
@@ -768,6 +790,13 @@ function hazardsStep(dt, alive) {
       G.pills.push({ x: clamp(c.x + Math.cos(a) * d, 20, CFG.W - 20), y: clamp(c.y + Math.sin(a) * d, 20, CFG.H - 20), life: 25 });
     }
   }
+  for (const h of G.holes) {   // craters eaten into the wall by the Ulcer: acid pools that blink before they close
+    if (h.life < 4 && Math.floor(G.t * 6) % 2) continue;
+    const x = h.x - cam.x + shx, y = h.y - cam.y + shy, pu = 0.5 + 0.5 * Math.sin(G.t * 5 + h.x);
+    ctx.fillStyle = '#3a1604'; ctx.beginPath(); ctx.arc(x, y, h.r + 2, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,140,40,' + (0.55 + 0.2 * pu) + ')'; ctx.beginPath(); ctx.arc(x, y, h.r, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,230,120,0.5)'; ctx.beginPath(); ctx.arc(x - h.r * 0.25, y - h.r * 0.25, h.r * 0.45, 0, 6.283); ctx.fill();
+  }
   for (const pl of G.pills) {
     pl.life -= dt;
     for (const p of alive) if (Math.hypot(p.x - pl.x, p.y - pl.y) < 10 + 6 * S.scale) { takePill(p); pl.life = 0; break; }
@@ -788,7 +817,18 @@ function breathY() {
 }
 const TRACHEA = { x: 600, y: 30 }, HEART_C = { x: 600, y: 450 };
 const beatPulse = () => Math.pow(Math.max(0, Math.sin(G.beat * 6.283)), 3);
+// bloodstream: four horizontal lanes that flow in alternating directions. From phase 3 on the current swings back and forth.
+const LANE_H = CFG.H / 4;
+const flowK = () => { const t = lvl().ph[1]; return G.t < t ? 1 : Math.cos(Math.PI * (G.t - t) / 12); }
+const flowSpeed = () => 34 * (1 + 0.25 * (G.phase - 1)) * flowK();
+const laneDir = y => Math.floor(clamp(y, 0, CFG.H - 1) / LANE_H) % 2 ? -1 : 1;
+// stomach: acid rises from the bottom in waves (more with every weakened gland); sealed glands keep the ground around them safe
+const GLAND_SAFE = 70;
+const acidDepth = () => { const sick = G.fix.reduce((n, f) => n + (f.st > 0 ? 1 : 0), 0); return Math.min(500, [90, 170, 260][G.phase - 1] * (0.4 + 0.3 * (1 + Math.sin(G.t * 0.24))) + 22 * sick); };
+const acidTop = () => CFG.H - acidDepth();
+const acidSafe = p => G.fix.some(f => f.st === 0 && Math.hypot(f.x - p.x, f.y - p.y) < GLAND_SAFE);
 function beatStep(dt) {   // runs on the host and on guests (cosmetic rhythm only needs the pacemaker state)
+  if (lvKey === 'blood') G.flowA += dt * flowK();
   if (lvKey !== 'heart' || !G.fix.length) return;
   const st = G.fix[0].st, period = st === 0 ? 0.9 : st === 1 ? 0.75 + 0.3 * Math.sin(G.t * 1.7) : 0.55;
   G.beat += dt / period;
@@ -834,9 +874,9 @@ function fixStep(dt, alive) {
     G.sabT = Math.max(6, 24 - G.t / 14) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
     const n = 1 + (G.t > 150 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
-    if (G.t < 60 || Math.random() < 0.3) say(T.sab);
+    if (!G.sabSaid) { G.sabSaid = true; say(T.sab); }   // only the first wave is announced
   }
-  if (lvKey === 'heart') heartStep(dt, alive, phase); else if (lvKey === 'brain') brainStep(dt, alive, phase); else lungStep(dt, alive, phase);
+  if (lvKey === 'heart') heartStep(dt, alive, phase); else if (lvKey === 'brain') brainStep(dt, alive, phase); else if (lvKey === 'stomach') stomachStep(dt, alive, phase); else if (lvKey === 'blood') bloodStep(dt, alive, phase); else lungStep(dt, alive, phase);
   if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say(T.low); } else if (O > 0.5) G.lowWarn = false;
   if (O < 0.15) { G.suffT += dt; if (G.suffT >= GRACE()) endGame(false, T.end); }
   else G.suffT = Math.max(0, G.suffT - dt * 2);
@@ -915,6 +955,30 @@ function lungStep(dt, alive, phase) {
       for (const u of G.units) kick(u);
     }
     if (c.t > c.warn + 0.7) G.cough = null;
+  }
+}
+
+function stomachStep(dt, alive, phase) {
+  const top = acidTop();
+  for (const p of alive) if (p.y > top && !acidSafe(p)) {
+    p.infection += 4 * ease('dmg') * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1) * dt; p.hitT = 0;
+    p.acidT = (p.acidT || 0) - dt;
+    if (p.acidT <= 0) { p.acidT = 1.2; p.flash = 0.1; tip(p.x, p.y - 14, 'ACID!', '#d8e830'); sfx('hurt', 200, 0.06, 'sawtooth', 0.02, -60); }
+  }
+  for (const f of G.fix) {
+    if (f.st === 0) { f.spawnMax = 0; continue; }
+    sickSpawn(f, dt, (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc'), 'pylori');
+  }
+  if (phase === 2 && !G.acidWarned) { G.acidWarned = true; say('ACID RISES! SEALED GLANDS KEEP YOU SAFE'); }
+}
+
+function bloodStep(dt, alive, phase) {
+  const v = flowSpeed();
+  for (const p of alive) if (p.stuckT <= 0) p.x = clamp(p.x + laneDir(p.y) * v * dt, 10, CFG.W - 10);
+  for (const u of G.units) if (u.stuckT <= 0 && !u.hack && !u.boss) u.x = clamp(u.x + laneDir(u.y) * v * 0.7 * dt, 6, CFG.W - 6);
+  for (const f of G.fix) {
+    if (f.st === 0) { f.spawnMax = 0; continue; }
+    sickSpawn(f, dt, (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc'), 'toxin');
   }
 }
 
@@ -1309,7 +1373,7 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
 const MORPH_T = 3;
 const CINE_T = 4;   // seconds: dash in, slow-motion poke, transformation, pet appears
 function startCine(p) {
-  const fl = G.units.find(u => u.boss && !u.dead);
+  const fl = G.units.find(u => u.type === 'manflu' && !u.dead);
   if (!fl || G.cine) return false;
   const sx = fl.x - cam.x, sy = fl.y - cam.y;
   if (sx < -20 || sy < -20 || sx > VIEW_W + 20 || sy > VIEW_H + 20) return false;   // only when it is on screen
@@ -1368,28 +1432,58 @@ function drawCineSpot() {
   for (const [x, y, r] of spots) { ctx.beginPath(); ctx.arc(x - cam.x + shx, y - cam.y + shy, r, 0, 6.283); ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
+// how each boss fires: a fan aimed at the nearest player, or a fixed ring. iv = seconds between volleys (healthy, below half health)
+const BOSS_AI = {
+  manflu: { n: 5, spread: 0.2, speed: 135, iv: [1.4, 1.0], range: 380 },
+  ulcer: { n: 8, ring: true, speed: 95, iv: [4.5, 3.0], range: 9999 },
+  sepsis: { n: 3, spread: 0.25, speed: 120, iv: [2.4, 1.8], range: 380 },
+};
+const bossAngles = (u, t) => {
+  const ai = BOSS_AI[u.type], out = [];
+  if (ai.ring) for (let i = 0; i < ai.n; i++) out.push(i / ai.n * 6.283 + (u.id % 8) * 0.1);
+  else { const base = Math.atan2(t.y - u.y, t.x - u.x); for (let i = 0; i < ai.n; i++) out.push(base + (i - (ai.n - 1) / 2) * ai.spread); }
+  return out;
+};
+const FP_COL = { stomach: ['#3a1604', '#ff9a30', '#d06a10'], blood: ['#2a0410', '#e04a70', '#a01840'] };
 function bossStep(dt, alive) {
   const bt = lvl().boss;
   if (bt && !G.bossSpawned && G.t >= bt) {
     G.bossSpawned = true;
-    const c = alive[Math.floor(Math.random() * alive.length)], a = rand(0, 6.283);
-    addUnit('v', 'manflu', clamp(c.x + Math.cos(a) * 330, 30, CFG.W - 30), clamp(c.y + Math.sin(a) * 330, 30, CFG.H - 30));
-    say('BOSS: MAN FLU!'); G.shake = 5; sfx('charge', 90, 1.2, 'sawtooth', 0.05, 120);
+    const c = alive[Math.floor(Math.random() * alive.length)], a = rand(0, 6.283), bs = lvl().bossType;
+    addUnit('v', bs, clamp(c.x + Math.cos(a) * 330, 30, CFG.W - 30), clamp(c.y + Math.sin(a) * 330, 30, CFG.H - 30));
+    say('BOSS: ' + BOSSES[bs] + '!'); G.shake = 5; sfx('charge', 90, 1.2, 'sawtooth', 0.05, 120);
   }
-  for (const u of G.units) {   // the boss sneezes snot at the nearest player in little fans; the snot hits nothing else
-    if (!u.boss || u.dead || !alive.length) continue;
+  for (const u of G.units) {   // bosses fire at the nearest player; their shots hit nothing else
+    if (!u.boss || u.dead || u.morph || !alive.length) continue;
+    const ai = BOSS_AI[u.type], low = u.hp < u.maxHp * 0.5 ? 1 : 0;
+    if (u.type === 'ulcer') {   // eats craters into the wall as it goes: acid pools that stay for a while
+      u.holeT = (u.holeT == null ? 2 : u.holeT) - dt;
+      if (u.holeT <= 0 && G.holes.length < 14) { u.holeT = low ? 2.2 : 3.2; G.holes.push({ x: u.x, y: u.y, r: 20, life: 24 }); burst(u.x, u.y, '#ff9a30', 8, 40); }
+    } else if (u.type === 'sepsis') {   // the infection spreads: it sheds saboteurs that go for the vessels
+      u.sabT = (u.sabT == null ? 6 : u.sabT) - dt;
+      if (u.sabT <= 0) { u.sabT = low ? 6.5 : 9; for (let i = 0; i < 2; i++) if (count('v') < CFG.MAX_VIRUS) addUnit('v', 'saboteur', u.x + rand(-14, 14), u.y + rand(-14, 14)); burst(u.x, u.y, '#e050c0', 8, 50); sfx('charge', 200, 0.3, 'sine', 0.03, 200); }
+    }
     u.shotT = (u.shotT == null ? 2 : u.shotT) - dt;
     if (u.shotT > 0) continue;
     const t = nearestPlayer(u);
-    if (!t || dist(u, t) > 380) { u.shotT = 0.5; continue; }
-    u.shotT = u.hp < u.maxHp * 0.5 ? 1.0 : 1.4; const base = Math.atan2(t.y - u.y, t.x - u.x);
-    for (let i = -2; i <= 2 && G.fp.length < 40; i++) { const a = base + i * 0.2; G.fp.push({ id: G.fpId = (G.fpId || 0) + 1, x: u.x + Math.cos(a) * u.r, y: u.y + Math.sin(a) * u.r, vx: Math.cos(a) * 135, vy: Math.sin(a) * 135, life: 3.2 }); }
-    sfx('spit', 180, 0.15, 'sawtooth', 0.03, -80); burst(u.x, u.y, '#c8f060', 6, 40);
+    if (!t || dist(u, t) > ai.range) { u.shotT = 0.5; continue; }
+    u.shotT = ai.iv[low];
+    for (const a of bossAngles(u, t)) if (G.fp.length < 60) G.fp.push({ id: G.fpId = (G.fpId || 0) + 1, x: u.x + Math.cos(a) * u.r, y: u.y + Math.sin(a) * u.r, vx: Math.cos(a) * ai.speed, vy: Math.sin(a) * ai.speed, life: 3.2 });
+    sfx('spit', 180, 0.15, 'sawtooth', 0.03, -80); burst(u.x, u.y, TYPES[u.type].col, 6, 40);
   }
+  for (const h of G.holes) {
+    h.life -= dt;
+    for (const p of alive) if (Math.hypot(h.x - p.x, h.y - p.y) < h.r + 3) {
+      p.infection += 7 * ease('dmg') * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1) * dt; p.hitT = 0;
+      p.acidT = (p.acidT || 0) - dt;
+      if (p.acidT <= 0) { p.acidT = 1; p.flash = 0.1; tip(p.x, p.y - 14, 'ACID!', '#ff9a30'); }
+    }
+  }
+  G.holes = G.holes.filter(h => h.life > 0);
   for (const b of G.fp) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     for (const p of alive) if (Math.hypot(b.x - p.x, b.y - p.y) < 5 * S.scale + 3) {
-      b.life = 0; burst(b.x, b.y, '#c8f060', 6, 40);
+      b.life = 0; burst(b.x, b.y, (FP_COL[lvKey] || [0, '#c8f060'])[1], 6, 40);
       p.infection += 4 * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.15;
       sfx('hurt', 150, 0.08, 'sawtooth', 0.025, -60); break;
     }
@@ -1537,6 +1631,37 @@ function drawPowers() {
 }
 
 // slime in flight: a pulsing landing zone (drawn above units and allies so it stays readable in a crowd) and the glob itself
+// stomach acid: a wavy yellow-green surface rising from the floor, with a safe bubble round every sealed gland
+function drawAcid() {
+  const top = acidTop() - cam.y + shy;
+  if (top < VIEW_H) {
+    const y0 = Math.max(0, Math.floor(top));
+    rect(0, y0 + 3, VIEW_W, VIEW_H - y0, '#c8d820', 0.28);
+    for (let x = 0; x < VIEW_W; x += 2) { const wy = top + Math.sin((x + cam.x) * 0.07 + G.t * 2.2) * 2; if (wy >= 0 && wy < VIEW_H) rect(x, wy, 2, 3, '#f0f060', 0.7); }
+    for (let i = 0; i < 24; i++) {
+      const bx = ((i * 83 + 17) % CFG.W) - cam.x, by = top + 8 + ((i * 47 + G.t * (10 + i % 5 * 4)) % 140);
+      if (bx > 0 && bx < VIEW_W && by > 0 && by < VIEW_H) rect(bx, by, 2, 2, '#fffbb0', 0.45);
+    }
+  }
+  for (const f of G.fix) if (f.st === 0) {
+    ctx.strokeStyle = 'rgba(160,255,220,' + (0.2 + 0.1 * Math.sin(G.t * 2 + f.i)) + ')'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(f.x - cam.x + shx, f.y - cam.y + shy, GLAND_SAFE, 0, 6.283); ctx.stroke();
+  }
+}
+// bloodstream: streaks flow along each lane in its direction; the lane borders are marked faintly
+function drawCurrent() {
+  const off = G.flowA * 34;
+  for (let l = 0; l < 4; l++) {
+    const dir = l % 2 ? -1 : 1, y0 = l * LANE_H - cam.y + shy;
+    if (l && y0 > 0 && y0 < VIEW_H) rect(0, y0, VIEW_W, 1, '#ff8a98', 0.12);
+    for (let i = 0; i < 26; i++) {
+      const sx = (((i * 97 + 31 * l + off * dir * (0.8 + (i % 4) * 0.15)) % CFG.W) + CFG.W) % CFG.W - cam.x, sy = y0 + 14 + ((i * 53 + l * 29) % (LANE_H - 28));
+      if (sx > -12 && sx < VIEW_W && sy > 0 && sy < VIEW_H) {
+        rect(sx, sy, 8, 1, '#ffb0c0', 0.3); rect(sx + (dir > 0 ? 8 : -1), sy - 1, 1, 3, '#ffb0c0', 0.3);
+      }
+    }
+  }
+}
 function drawGlobs() {
   for (const g of G.globs) {
     const k = Math.min(1, g.t / g.dur), gx = g.sx + (g.tx - g.sx) * k, gy = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 46;
@@ -1681,8 +1806,8 @@ function render() {
   }
 
   if (G.fix.length) {   // level furniture + the fixables (air sacs / valves / pacemaker)
-    const heart = lvKey === 'heart';
-    if (!heart) {   // trachea
+    const heart = lvKey === 'heart', lung = lvKey === 'lung';
+    if (lung) {   // trachea
       const tx = TRACHEA.x - cam.x + shx, ty = -cam.y + shy;
       rect(tx - 9, ty, 18, 56, '#5a2c46'); rect(tx - 7, ty, 14, 56, '#a86a88');
       for (let y = 4; y < 56; y += 8) rect(tx - 9, ty + y, 18, 2, '#5a2c46');
@@ -1692,7 +1817,7 @@ function render() {
     }
     const br = breathY(), bp = beatPulse();
     for (const f of G.fix) {
-      const img = SPR[f.kind][f.st], k = heart ? 1 + 0.14 * bp : 1 - 0.18 * br, w = Math.round(img.width * k), h = Math.round(img.height * k);
+      const img = SPR[f.kind][f.st], k = heart ? 1 + 0.14 * bp : lung ? 1 - 0.18 * br : 1, w = Math.round(img.width * k), h = Math.round(img.height * k);
       if (f.st === 0) {
         const pu = 0.5 + 0.5 * Math.sin(G.t * 2 + f.i);
         ctx.strokeStyle = 'rgba(120,230,255,' + (0.2 + 0.15 * pu) + ')'; ctx.lineWidth = 1;
@@ -1812,16 +1937,16 @@ function render() {
     for (let d = 10; d < l - 4; d += 4) rect(p.x + dx / l * d - cam.x + shx, p.y + dy / l * d - cam.y + shy, 1, 1, '#fff', 0.6);
     drawText(touchUI ? 'TAP' : 'CLICK', sp.x - cam.x + shx, sp.y - 20 - cam.y + shy, '#ffe070', 1, 'c');
   }
-  for (const u of G.units) {   // warning: dotted lanes toward the target just before the boss sneezes
+  for (const u of G.units) {   // warning: dotted lanes just before a boss fires
     if (!u.boss || u.dead || u.morph || u.morphK > 0 || G.cine || !(u.shotT > 0 && u.shotT < 0.55)) continue;
     const t = nearestPlayer(u);
-    if (!t || dist(u, t) > 380) continue;
-    const base = Math.atan2(t.y - u.y, t.x - u.x), k = 1 - u.shotT / 0.55;
-    for (let i = -2; i <= 2; i++) for (let d = u.r + 6; d < u.r + 70; d += 8) rect(u.x + Math.cos(base + i * 0.2) * d - cam.x + shx, u.y + Math.sin(base + i * 0.2) * d - cam.y + shy, 2, 2, '#c8f060', 0.25 + 0.6 * k);
+    if (!t || dist(u, t) > BOSS_AI[u.type].range) continue;
+    const k = 1 - u.shotT / 0.55, col = (FP_COL[lvKey] || [0, '#c8f060'])[1];
+    for (const a of bossAngles(u, t)) for (let d = u.r + 6; d < u.r + 70; d += 8) rect(u.x + Math.cos(a) * d - cam.x + shx, u.y + Math.sin(a) * d - cam.y + shy, 2, 2, col, 0.25 + 0.6 * k);
   }
   for (const b of G.fp) {   // snot balls
     const x = b.x - cam.x + shx, y = b.y - cam.y + shy, pu = Math.floor(G.t * 10) % 2;
-    rect(x - 3, y - 3, 6, 6, '#26340a'); rect(x - 2, y - 2, 4, 4, pu ? '#c8f060' : '#a8c83a'); rect(x - 1, y - 2, 1, 1, '#fff');
+    const fc = FP_COL[lvKey] || ['#26340a', '#c8f060', '#a8c83a']; rect(x - 3, y - 3, 6, 6, fc[0]); rect(x - 2, y - 2, 4, 4, pu ? fc[1] : fc[2]); rect(x - 1, y - 2, 1, 1, '#fff');
   }
   for (const u of G.units) {   // lashes on top of every body so the tip is always visible on its target
     const ut = tailOf(u);
@@ -1906,6 +2031,8 @@ function render() {
     }
   }
   drawGlobs();
+  if (lvKey === 'stomach') drawAcid();
+  if (lvKey === 'blood') drawCurrent();
   if (lvKey === 'brain') { drawDarkness(); drawWeb(); drawBolts(); }
   drawPowers();
   if (lvKey === 'lung') {
@@ -1979,6 +2106,11 @@ function drawHud() {
       drawText('FEVER ' + fv + '%', VIEW_W / 2 + 4, VIEW_H - 12, fv > 60 ? '#ff6a5a' : fv > 30 ? '#ffb060' : '#ffd0d6', 1, 'l');
     } else if (lvKey === 'brain') {
       drawText('LIT ' + G.fix.filter(f => f.st === 0).length + '/' + G.fix.length, VIEW_W / 2, VIEW_H - 12, '#bfd0ff', 1, 'c');
+    } else if (lvKey === 'stomach') {
+      drawText('ACID ' + Math.round(acidDepth() / CFG.H * 100) + '%', VIEW_W / 2, VIEW_H - 12, '#e8e860', 1, 'c');
+    } else if (lvKey === 'blood') {
+      const k = flowK();
+      drawText(k > 0.2 ? 'CURRENT FORWARD' : k < -0.2 ? 'CURRENT REVERSED' : 'CURRENT SLACK', VIEW_W / 2, VIEW_H - 12, '#ffb0c0', 1, 'c');
     } else {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
@@ -1994,8 +2126,8 @@ function drawHud() {
   const boss = G.units.find(u => u.boss && !u.dead);
   if (boss) {   // boss health bar along the bottom of the screen
     const w = Math.min(200, VIEW_W - 40), x = VIEW_W / 2 - w / 2, y = VIEW_H - 32, fr = clamp(boss.hpF !== undefined ? boss.hpF : boss.hp / boss.maxHp, 0, 1), fl = boss.morph || boss.morphK > 0;
-    drawText('MAN FLU', VIEW_W / 2, y - 16, fl && Math.floor((G.t + (G.cine ? G.cine.t : 0)) * 8) % 2 ? '#ff9ac8' : '#c8f060', 2, 'c');
-    rect(x - 2, y - 2, w + 4, 11, '#000'); rect(x - 1, y - 1, w + 2, 9, '#a8c83a'); rect(x, y, w, 7, '#2a0a08');
+    drawText(BOSSES[boss.type], VIEW_W / 2, y - 16, fl && Math.floor((G.t + (G.cine ? G.cine.t : 0)) * 8) % 2 ? '#ff9ac8' : { manflu: '#c8f060', ulcer: '#ffb050', sepsis: '#e08aff' }[boss.type], 2, 'c');
+    rect(x - 2, y - 2, w + 4, 11, '#000'); rect(x - 1, y - 1, w + 2, 9, { manflu: '#a8c83a', ulcer: '#e08a30', sepsis: '#a040b0' }[boss.type]); rect(x, y, w, 7, '#2a0a08');
     rect(x, y, Math.round(w * fr), 7, fl ? '#ff9ac8' : '#d03020'); rect(x, y, Math.round(w * fr), 2, fl ? '#ffd0e4' : '#ff6a50');
   }
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
@@ -2042,7 +2174,7 @@ function drawHud() {
   }
 }
 
-const fixTag = f => f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VALVE' : f.kind === 'syn' ? 'SYNAPSE' : 'SAC';
+const fixTag = f => f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VALVE' : f.kind === 'syn' ? 'SYNAPSE' : f.kind === 'gland' ? 'GLAND' : f.kind === 'vessel' ? 'VESSEL' : 'SAC';
 
 function drawTouch() {
   const ring = (x, y, r, col, a) => {
@@ -2098,7 +2230,7 @@ function drawTitle() {
     ? ['LEFT STICK MOVES, RIGHT STICK AIMS', 'ONLINE CO-OP WORKS BETWEEN PHONES AND PCS']
     : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'ONLINE CO-OP: HOST OR JOIN A ROOM WITH A 4-LETTER CODE'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS VIRUSES INTO ALLIES',
-    lvSel === 'campaign' ? 'CAMPAIGN: BRAIN, LUNGS, HEART. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
+    lvSel === 'campaign' ? 'CAMPAIGN: 5 ORGANS. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
   if (compact) lines = [lines[0], lines[2], lines[4]];
   lines.forEach((t, i) => drawText(t, c, (compact ? 52 : 100) + i * (compact ? 10 : 9), i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
@@ -2224,7 +2356,7 @@ function drawOver() {
 
 // ---------------------------------------------------------------- online
 // Host-authoritative: the host simulates everything. The guest sends its input and renders snapshots.
-const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember', 'spark', 'manflu'];
+const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember', 'spark', 'manflu', 'pylori', 'toxin', 'ulcer', 'sepsis'];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
@@ -2315,6 +2447,7 @@ function hostSend(dt) {
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
     pb: G.pb.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed, b.pi]), pr: G.pr.map(b => [r1(b.x), r1(b.y), b.s, r1(b.len), r2(b.t), b.pi]), pg: G.pg.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur), g.pi, r1(g.r)]), ps: G.ps.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life), x.pi]), np: G.newPower || '', ci: G.cine ? r2(G.cine.t) : -1, fp: G.fp.map(b => [b.id, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]), pt: G.pet ? [r1(G.pet.x), r1(G.pet.y)] : 0,
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
+    ho: G.holes.map(h => [r1(h.x), r1(h.y), r1(h.life)]),
     bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), bo: G.bolts.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
   evq = [];
 }
@@ -2351,7 +2484,7 @@ function applySnap(d) {
     const type = TYPE_IDS[a[2]];
     if (!u) { u = { id: a[0], x: a[3], y: a[4], dead: false, born: G.t }; net.units.set(a[0], u); }
     u.team = a[1] ? 'v' : 'i'; u.type = type; u.r = TYPES[type].r; u.tx = a[3]; u.ty = a[4]; u.weakA = a[5]; u.flash = a[6] ? 0.1 : -1;
-    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null; u.morphK = a[10]; u.boss = type === 'manflu'; u.hpF = a[11] >= 0 ? a[11] : undefined; if (u.boss) u.shotT = a[12];
+    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null; u.morphK = a[10]; u.boss = !!BOSSES[type]; u.hpF = a[11] >= 0 ? a[11] : undefined; if (u.boss) u.shotT = a[12];
     u.tailG = a[7] ? { x: a[7][0], y: a[7][1], t: a[7][2] } : null;
     seen.add(a[0]); list.push(u);
   }
@@ -2368,7 +2501,7 @@ function applySnap(d) {
       b.tx = a[1]; b.ty = a[2]; b.vx = a[3]; b.vy = a[4]; seenF.add(a[0]); list.push(b);
     }
     for (const id of net.fp.keys()) if (!seenF.has(id)) net.fp.delete(id);
-    G.fp = list;
+    G.fp = list; G.holes = (d.ho || []).map(a => ({ x: a[0], y: a[1], r: 20, life: a[2] }));
   } G.pet = d.pt ? { x: G.pet ? G.pet.x : d.pt[0], y: G.pet ? G.pet.y : d.pt[1], tx: d.pt[0], ty: d.pt[1], vx: 0, vy: 0 } : null;
   G.slimes = d.sl.map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3] }));
   G.globs = d.gl.map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5] }));
@@ -2452,7 +2585,7 @@ requestAnimationFrame(frame);
 }
 
 // small hook for automated testing
-window.__dbg = { cont: overContinue, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, pokeRef(p, t) { return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k === 'campaign' ? CAMPAIGN[0] : k; camp = null; newGame(false); },
+window.__dbg = { cont: overContinue, get acid() { return lvKey === 'stomach' ? acidTop() : 1e9; }, safe: acidSafe, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, pokeRef(p, t) { return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k === 'campaign' ? CAMPAIGN[0] : k; camp = null; newGame(false); },
   startCamp(i, S0) { lvSel = 'campaign'; camp = { i, S0: S0 || null }; startGame(false); }, reach: reachOf, spot: spotOf, get LEVELS() { return LEVELS; }, get tuneSet() { return tuneSet(); }, get fix() { return G.fix; }, get unlocked() { return unlocked; }, gainXp, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
   start: startGame, step(n, dt = 1 / 60) { for (let i = 0; i < n && state === 'play'; i++) update(dt); },
   pick: i => { if (state === 'levelup') chooseUpgrade(i); } };
