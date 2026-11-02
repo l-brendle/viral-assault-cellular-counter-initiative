@@ -31,7 +31,10 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   back. The level is **dark**: only you, your allies and lit synapses give light, so dark synapses leave corners where
   viruses hide. Sick synapses discharge **lightning along the neuron lines** (blue striped lanes warn first, stay off
   the line) and breed **spark** enemies. Phase 2 (1:30) is darker and faster, phase 3 (3:20) adds storms that fire along
-  several lines at once. If the signal stays near zero for 15 seconds the brain goes dark and you lose.
+  several lines at once. The darkness follows the **signal** bar (average synapse health: lit 100%, dim 50%, dark 0%), so
+  a failing signal visibly darkens the level. The red tick on the bar is the 15% line: stay below it for 25 seconds (15
+  in the other levels) and the brain goes dark and you lose. This is the first campaign level, so it is deliberately
+  gentler: slower spawns, weaker viruses and arcs, a longer grace period, and a few on-screen tips at the start.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
   weak spot to repair one step (allies help too). Fewer open sacs means less oxygen: you move slower and shake off

@@ -26,6 +26,9 @@ const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '' },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES, STAY OFF THE LINES',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS! ARCS SPEED UP', p3: 'STORM! STAY OFF THE LINES' },
+    ease: { spawn: 1.7, swarm: 0.6, dmg: 0.5, hp: 0.7, sab: 1.7, arc: 1.4, grace: 25 },   // the first campaign level: slower and gentler so there is time to learn
+    ph: [120, 240],
+    hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
@@ -42,6 +45,8 @@ let lvSel = 'campaign';   // what the title screen has selected
 let lvKey = 'brain';      // the level that is actually loaded
 let camp = null;          // campaign progress while playing it: { i, S0 } (S0 = upgrades at the start of this level)
 const lvl = () => LEVELS[lvKey];
+const ease = k => (lvl().ease && lvl().ease[k]) || 1;   // per-level difficulty multipliers (only the Brain uses them)
+const GRACE = () => ease('grace') > 1 ? ease('grace') : 15;   // seconds the signal may stay below 15% before you lose
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -329,6 +334,7 @@ function newGame(co) {
       if (!G.edges.some(([x, y]) => (x === f.i && y === o.i) || (x === o.i && y === f.i))) G.edges.push([f.i, o.i]);
     });
   });
+  G.sabT = 14 * ease('sab'); G.hintI = 0;
   if (lvl().intro) say(lvl().intro);
   updateCam();
 }
@@ -362,7 +368,7 @@ function say(text) { G.msg = text; G.msgT = 2.6; }
 
 // ---------------------------------------------------------------- units
 function addUnit(team, type, x, y) {
-  const T = TYPES[type], hpm = team === 'v' ? 1 + G.t / 300 : 1;
+  const T = TYPES[type], hpm = team === 'v' ? (1 + G.t / 300) * ease('hp') : 1;
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
     weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(3, 9) : rand(1.5, 5), tail: null,
@@ -717,7 +723,7 @@ function hazardsStep(dt, alive) {
     const ca = Math.cos(b.a), sa = Math.sin(b.a);
     const hit = (x, y, r) => { const dx = x - b.x, dy = y - b.y, along = dx * ca + dy * sa; return along >= 0 && along <= b.len && Math.abs(-dx * sa + dy * ca) < b.w / 2 + r; };
     for (const u of G.units) if (!u.dead && hit(u.x, u.y, u.r)) damageUnit(u, 70 * dt);
-    for (const p of alive) if (hit(p.x, p.y, 5 * S.scale)) { p.infection += 32 * dt * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.1; }
+    for (const p of alive) if (hit(p.x, p.y, 5 * S.scale)) { p.infection += 32 * ease('dmg') * dt * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.1; }
     if (Math.random() < 0.7) { const d = rand(10, b.len); G.parts.push({ x: b.x + ca * d, y: b.y + sa * d, vx: rand(-20, 20), vy: rand(-30, -5), life: 0.4, max: 0.4, col: b.c ? (Math.random() < 0.5 ? '#a0c8ff' : '#5a8aff') : (Math.random() < 0.5 ? '#ffb040' : '#ff6a1a'), sz: 2 }); }
   }
   G.beams = G.beams.filter(b => b.t < b.warn + b.fire);
@@ -758,7 +764,7 @@ function beatStep(dt) {   // runs on the host and on guests (cosmetic rhythm onl
   G.beat += dt / period;
   G.flowA += dt * 0.5 * (0.35 + 0.65 * beatPulse()) * (1 + 0.5 * st);
 }
-const phaseNow = () => G.t > 200 ? 3 : G.t > 90 ? 2 : 1;
+const phaseNow = () => { const ph = lvl().ph || [90, 200]; return G.t > ph[1] ? 3 : G.t > ph[0] ? 2 : 1; };
 
 // sick fixables breed little enemies (progress bar under them)
 function sickSpawn(f, dt, fast, type) {
@@ -778,14 +784,14 @@ function fixStep(dt, alive) {
   if (phase !== G.phase) { G.phase = phase; say(phase === 2 ? T.p2 : T.p3); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200); }
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
-    G.sabT = Math.max(6, 15 - G.t / 40) * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
+    G.sabT = Math.max(6, 15 - G.t / 40) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
     const n = 1 + (G.t > 150 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
     if (G.t < 60 || Math.random() < 0.3) say(T.sab);
   }
   if (lvKey === 'heart') heartStep(dt, alive, phase); else if (lvKey === 'brain') brainStep(dt, alive, phase); else lungStep(dt, alive, phase);
   if (O < 0.3 && !G.lowWarn) { G.lowWarn = true; say(T.low); } else if (O > 0.5) G.lowWarn = false;
-  if (O < 0.15) { G.suffT += dt; if (G.suffT >= 15) endGame(false, T.end); }
+  if (O < 0.15) { G.suffT += dt; if (G.suffT >= GRACE()) endGame(false, T.end); }
   else G.suffT = Math.max(0, G.suffT - dt * 2);
 }
 
@@ -796,7 +802,7 @@ function brainStep(dt, alive, phase) {
   const arc = (f, o, warn) => G.beams.push({ x: f.x, y: f.y, a: Math.atan2(o.y - f.y, o.x - f.x), len: dist(f, o), w: 12, t: 0, warn, fire: 0.7, fired: false, c: 1 });
   for (const f of G.fix) {
     if (f.st === 0) { f.spawnMax = 0; continue; }
-    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc');
     f.rayT = (f.rayT == null ? rand(3, 8) : f.rayT) - dt;
     if (f.rayT <= 0) {
       f.rayT = (f.st === 2 ? 7 : 12) * fast * rand(0.85, 1.15);
@@ -920,6 +926,8 @@ function update(dt) {
   G.t += dt;
   if (G.t >= lvl().time) { endGame(true, lvl().win); return; }
   G.msgT -= dt; G.shake = Math.max(0, G.shake - 20 * dt);
+  const hs = lvl().hints;   // short scripted tips for the first level
+  if (hs && G.hintI < hs.length && G.t >= hs[G.hintI][0]) say(hs[G.hintI++][1]);
   for (const t of G.tips) t.t -= dt;
   G.tips = G.tips.filter(t => t.t > 0);
 
@@ -990,14 +998,14 @@ function update(dt) {
   G.spawnT -= dt;
   if (G.spawnT <= 0) {
     const lost = organs.filter(o => o.team === 'v').length;   // every lost organ makes waves bigger
-    G.spawnT = Math.max(0.3, 1.9 - G.t * 0.004) / (1 + 0.3 * lost) / (players.length > 1 ? 1.5 : 1) * (G.fix.length ? 1.3 : 1);
+    G.spawnT = Math.max(0.3, 1.9 - G.t * 0.004) / (1 + 0.3 * lost) / (players.length > 1 ? 1.5 : 1) * (G.fix.length ? 1.3 : 1) * ease('spawn');
     const n = 1 + Math.floor(G.t / 90) + (lost >= 3 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus();
   }
   if (G.t >= G.nextSwarm) {
     G.nextSwarm += 45; say('SWARM INCOMING!');
     const c = alive[Math.floor(Math.random() * alive.length)];
-    const a = rand(0, 6.28), n = 8 + Math.floor(G.t / 10) + (players.length > 1 ? 6 : 0);
+    const a = rand(0, 6.28), n = Math.round((8 + Math.floor(G.t / 10) + (players.length > 1 ? 6 : 0)) * ease('swarm'));
     for (let i = 0; i < n; i++) {
       if (count('v') >= CFG.MAX_VIRUS) break;
       addUnit('v', pickType(), clamp(c.x + Math.cos(a) * 280 + rand(-30, 30), 10, CFG.W - 10), clamp(c.y + Math.sin(a) * 280 + rand(-30, 30), 10, CFG.H - 10));
@@ -1095,7 +1103,7 @@ function update(dt) {
       u.x -= dpx * push; u.y -= dpy * push;
       if (u.team === 'v' && u.atkCd <= 0) {
         u.atkCd = 1.1;
-        p.infection += u.dmg * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1);   p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2);   // viruses hit harder as the infection matures
+        p.infection += u.dmg * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1);   p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2);   // viruses hit harder as the infection matures
         p.vx += dpx / dp * 40; p.vy += dpy / dp * 40;
         sfx('hurt', 150, 0.1, 'sawtooth', 0.03, -60);
       }
@@ -1242,7 +1250,8 @@ function drawDarkness() {
   if (darkC.width !== VIEW_W || darkC.height !== VIEW_H) { darkC.width = VIEW_W; darkC.height = VIEW_H; }
   const g = darkC.getContext('2d'), flash = G.beams.some(b => b.c && b.t >= b.warn && b.t < b.warn + 0.12);
   g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, VIEW_W, VIEW_H);
-  g.fillStyle = 'rgba(4,2,20,' + (flash ? 0.35 : [0, 0.62, 0.72, 0.8][G.phase] || 0.62) + ')'; g.fillRect(0, 0, VIEW_W, VIEW_H);
+  const sig = oxy(), dark = clamp(0.28 + 0.55 * (1 - sig) + 0.04 * (G.phase - 1), 0.28, 0.9);   // the lower the signal, the darker the level
+  g.fillStyle = 'rgba(4,2,20,' + (flash ? Math.min(dark, 0.3) : dark) + ')'; g.fillRect(0, 0, VIEW_W, VIEW_H);
   g.globalCompositeOperation = 'destination-out'; g.fillStyle = 'rgba(0,0,0,0.3)';
   const light = (x, y, r) => {
     x = Math.round(x - cam.x + shx); y = Math.round(y - cam.y + shy);
@@ -1536,8 +1545,9 @@ function drawHud() {
   drawText(mm + ':' + String(ss).padStart(2, '0'), VIEW_W / 2, 4, '#fff', 2, 'c');
   if (G.fix.length) {
     const heart = lvKey === 'heart', T = lvl().txt, O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
-    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
-    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(15 - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
+    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * 0.15), 5, '#3a1018'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
+    rect(x + Math.round(w * 0.15), 16, 1, 7, '#ff5050');   // below this line the countdown to losing starts
+    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(GRACE() - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
     if (heart) {
       const fv = Math.round((1 - O) * 100), pu = beatPulse(), ic = SPR.heartIcon, k = 1 + 0.5 * pu;
       ctx.drawImage(ic, Math.round(VIEW_W / 2 - 22 - ic.width * k / 2), Math.round(VIEW_H - 14 - (k - 1) * 4), Math.round(ic.width * k), Math.round(ic.height * k));
@@ -1563,9 +1573,9 @@ function drawHud() {
     drawText(o.tag, x + 1, y + 1, inf ? '#e8ff7a' : '#fff', 1, 'l', false);
   });
   if (G.msgT > 0) {
-    const w = G.msg.length * 8 + 12, my = G.fix.length ? 34 : 28;
-    rect(VIEW_W / 2 - w / 2, my, w, 12, '#000', 0.6);
-    drawText(G.msg, VIEW_W / 2, my + 3, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', 2, 'c');
+    const sc = G.msg.length * 8 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * 4 * sc + 12, my = G.fix.length ? 34 : 28;   // long messages drop to small text so they fit narrow screens
+    rect(VIEW_W / 2 - w / 2, my, w, sc * 6, '#000', 0.6);
+    drawText(G.msg, VIEW_W / 2, my + sc * 1.5, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
