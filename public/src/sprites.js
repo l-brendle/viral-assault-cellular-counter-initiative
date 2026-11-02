@@ -29,20 +29,34 @@ function fromRows(rows, pal) {
   return c;
 }
 
+// virus spikes radiating from (cx, cy) outwards from radius r, and the angry little face
+function drawSpikes(g, cx, cy, r, n, len, outline, tip, rot = 0) {
+  for (let k = 0; k < n; k++) {
+    const a = rot + (k + 0.5) / n * Math.PI * 2;
+    for (let d = r - 1; d <= r + len; d++) {
+      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      if (d < r + len) px(g, x, y, outline); else px(g, x - 1, y - 1, tip, 2, 2);
+    }
+  }
+}
+function drawFace(g, cx, cy, r, outline) {
+  const dx = Math.max(2, Math.round(r * 0.38)), ey = Math.round(cy - r * 0.15) - 1;
+  for (const sd of [-1, 1]) {
+    const ex = sd < 0 ? cx - dx - 1 : cx + dx - 1;
+    px(g, ex, ey, '#fff', 2, 2);
+    px(g, sd < 0 ? ex + 1 : ex, ey + 1, '#2a0a14');       // pupil looks at the middle
+    px(g, ex, ey - 1, outline, 2, 1);                      // angry brow
+  }
+  if (r >= 6) px(g, cx - 1, cy + Math.round(r * 0.45), '#2a0a14', 3, 1);
+}
+
 // Round, shaded blob with optional spikes / face / nucleus.
 function makeBlob(o) {
   const r = o.r, n = o.spikes || 0, len = n ? (o.spikeLen || 3) : 0;
   const size = (r + len + 2) * 2, c = mk(size, size), g = c.getContext('2d');
   const cx = size / 2, cy = size / 2;
 
-  for (let k = 0; k < n; k++) {
-    const a = (k + 0.5) / n * Math.PI * 2;
-    for (let d = r - 1; d <= r + len; d++) {
-      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
-      if (d < r + len) px(g, x, y, o.outline);
-      else px(g, x - 1, y - 1, o.spikeColor, 2, 2);
-    }
-  }
+  drawSpikes(g, cx, cy, r, n, len, o.spikeStem || o.outline, o.spikeColor);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy);
     if (d > r) continue;
@@ -62,16 +76,7 @@ function makeBlob(o) {
     disc(g, Math.round(cx + (o.nx || 0)), Math.round(cy + (o.ny || 0)), o.nr, o.nucleus);
     px(g, cx + (o.nx || 0) - o.nr + 1, cy + (o.ny || 0) - o.nr + 1, o.light);
   }
-  if (o.face) {
-    const dx = Math.max(2, Math.round(r * 0.38)), ey = Math.round(cy - r * 0.15) - 1;
-    for (const s of [-1, 1]) {
-      const ex = s < 0 ? cx - dx - 1 : cx + dx - 1;
-      px(g, ex, ey, '#fff', 2, 2);
-      px(g, s < 0 ? ex + 1 : ex, ey + 1, '#2a0a14');       // pupil looks at the middle
-      px(g, ex, ey - 1, o.outline, 2, 1);                  // angry brow
-    }
-    if (r >= 6) px(g, cx - 1, cy + Math.round(r * 0.45), '#2a0a14', 3, 1);
-  }
+  if (o.face) drawFace(g, cx, cy, r, o.outline);
   return c;
 }
 
@@ -142,6 +147,7 @@ function makeLungBackground() {
 
 // air sac: a grape-like cluster. 0 = open (pink, plump), 1 = clogged (bruised, deflating), 2 = collapsed (grey-green, flat)
 function makeSac(st) {
+  if (st === 2) return makeInfectedSac();
   const c = mk(38, 34), g = c.getContext('2d');
   const pal = [
     { o: '#3a0f2a', body: '#f08ab4', light: '#ffd0e4', dark: '#c05888' },
@@ -172,6 +178,29 @@ function makeHeartBackground() {
   return c;
 }
 
+// a fully disabled objective: swallowed by the virus. Same look as the infected organs (green body, glowing spike tips, angry face).
+function makeInfectedBlob(r, spikes, len, groove) {
+  const c = makeBlob({ r, body: '#6faa3a', light: '#a8d860', dark: '#3f6a22', outline: '#16300e', spikeStem: '#4f8a2a', spikeColor: '#e8ff7a', spikes, spikeLen: len, face: true, spots: true });
+  if (groove) {   // valve: a dark ring groove round the face, so it still reads as a ring
+    const g = c.getContext('2d'), cx = c.width / 2, cy = c.height / 2;
+    for (let k = 0; k < 60; k++) { const a = k / 60 * 6.283; px(g, cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3), '#2a4a14'); }
+  }
+  return c;
+}
+// the collapsed air sac: the flat sac silhouette, bristling with spikes and wearing a face
+function makeInfectedSac() {
+  const c = mk(48, 44), g = c.getContext('2d'), ox = 5, oy = 7;
+  const pal = { o: '#16300e', body: '#6faa3a', light: '#a8d860', dark: '#3f6a22', tip: '#e8ff7a' };
+  const lobes = [[19, 24, 9], [10, 22, 6], [28, 22, 6], [19, 17, 4]].map(([x, y, r]) => [x + ox, y + oy, r]);
+  for (const [cx, cy, r] of lobes) drawSpikes(g, cx, cy, r, Math.max(5, r), 3, '#4f8a2a', pal.tip, cx * 0.3);
+  for (const [cx, cy, r] of lobes) disc(g, cx, cy, r, pal.o);
+  for (const [cx, cy, r] of lobes) disc(g, cx, cy, r - 1, pal.body);
+  for (const [cx, cy, r] of lobes) { px(g, cx - r * 0.45, cy - r * 0.55, pal.light, 2, 2); px(g, cx + r * 0.25, cy + r * 0.35, pal.dark, 3, 2); }
+  for (const [x, y] of [[14, 20], [30, 18], [22, 30]]) px(g, x + ox, y + oy, pal.dark, 2, 2);
+  drawFace(g, 19 + ox, 24 + oy, 9, pal.o);
+  return c;
+}
+
 // brain tissue: deep indigo with faint wandering neuron fibres and a few glowing specks
 function makeBrainBackground() {
   const S = 64, c = mk(S, S), g = c.getContext('2d');
@@ -190,6 +219,7 @@ function makeBrainBackground() {
 
 // synapse node: a cell body with dendrites. 0 = lit (glowing cyan), 1 = dim (flickering violet), 2 = dark (grey, slimy)
 function makeSynapse(st) {
+  if (st === 2) return makeBlob({ r: 9, body: '#4f7a30', light: '#86b650', dark: '#2d4a1a', outline: '#0f2208', spikeStem: '#3f6a22', spikeColor: '#e8ff7a', spikes: 7, spikeLen: 6, face: true, spots: true });
   const c = mk(38, 38), g = c.getContext('2d');
   const body = ['#6fd8ff', '#8a78c8', '#4a4a58'][st], light = ['#d0f4ff', '#c0b0f0', '#7a7a88'][st], dark = ['#2a8ac0', '#52408a', '#2a2a34'][st], line = ['#9ae8ff', '#6a5aa8', '#3a3a48'][st];
   for (let k = 0; k < 7; k++) {
@@ -205,6 +235,7 @@ function makeSynapse(st) {
 
 // heart valve: a ring with two leaflets. 0 = open, 1 = stiff, 2 = stuck shut and slimy
 function makeValve(st) {
+  if (st === 2) return makeInfectedBlob(13, 12, 4, true);
   const c = mk(36, 34), g = c.getContext('2d');
   const body = ['#e0707e', '#c8a050', '#6f8a50'][st], light = ['#ffb0b8', '#f0d890', '#a0b878'][st], flap = ['#ffd0d6', '#fff0b0', '#c8d8a0'][st];
   disc(g, 18, 17, 15, '#3a0a14'); disc(g, 18, 17, 14, body); disc(g, 18, 17, 9, '#3a0a14'); disc(g, 18, 17, 8, '#2a0810');
@@ -218,6 +249,7 @@ function makeValve(st) {
 
 // pacemaker node: a glowing orb with a bolt. 0 = steady, 1 = erratic (flickers), 2 = stalled (dark)
 function makePacemaker(st) {
+  if (st === 2) return makeInfectedBlob(12, 12, 4, false);
   const c = mk(32, 32), g = c.getContext('2d');
   const body = ['#ffe070', '#e0a040', '#5a6a48'][st], light = ['#fff6b0', '#ffd890', '#8a9a70'][st], dark = ['#c89020', '#a06820', '#3a4a2c'][st];
   disc(g, 16, 16, 13, '#3a2a08'); disc(g, 16, 16, 12, dark); disc(g, 15, 15, 10, body); disc(g, 12, 11, 4, light);
@@ -293,25 +325,32 @@ function makePacemaker(st) {
   SPR.heartIcon = fromRows(['.rr.rr.', 'rhrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: '#ff4a62', h: '#ffc0c8' });
 })();
 
-// 3x5 bitmap font
+// 5x7 bitmap font (6px advance, 7px tall)
+const FONT_W = 5, FONT_H = 7, FONT_ADV = 6;
 const FONT = (() => {
   const g = {
-    A: '.#.|#.#|###|#.#|#.#', B: '##.|#.#|##.|#.#|##.', C: '.##|#..|#..|#..|.##', D: '##.|#.#|#.#|#.#|##.',
-    E: '###|#..|##.|#..|###', F: '###|#..|##.|#..|#..', G: '.##|#..|#.#|#.#|.##', H: '#.#|#.#|###|#.#|#.#',
-    I: '###|.#.|.#.|.#.|###', J: '..#|..#|..#|#.#|.#.', K: '#.#|#.#|##.|#.#|#.#', L: '#..|#..|#..|#..|###',
-    M: '#.#|###|###|#.#|#.#', N: '##.|#.#|#.#|#.#|#.#', O: '.#.|#.#|#.#|#.#|.#.', P: '##.|#.#|##.|#..|#..',
-    Q: '.#.|#.#|#.#|##.|.##', R: '##.|#.#|##.|#.#|#.#', S: '.##|#..|.#.|..#|##.', T: '###|.#.|.#.|.#.|.#.',
-    U: '#.#|#.#|#.#|#.#|###', V: '#.#|#.#|#.#|#.#|.#.', W: '#.#|#.#|###|###|#.#', X: '#.#|#.#|.#.|#.#|#.#',
-    Y: '#.#|#.#|.#.|.#.|.#.', Z: '###|..#|.#.|#..|###',
-    0: '###|#.#|#.#|#.#|###', 1: '.#.|##.|.#.|.#.|###', 2: '##.|..#|.#.|#..|###', 3: '##.|..#|.#.|..#|##.',
-    4: '#.#|#.#|###|..#|..#', 5: '###|#..|##.|..#|##.', 6: '.##|#..|###|#.#|###', 7: '###|..#|.#.|.#.|.#.',
-    8: '###|#.#|###|#.#|###', 9: '###|#.#|###|..#|##.',
-    '.': '...|...|...|...|.#.', ':': '...|.#.|...|.#.|...', '/': '..#|..#|.#.|#..|#..', '-': '...|...|###|...|...',
-    '+': '...|.#.|###|.#.|...', '%': '#.#|..#|.#.|#..|#.#', '!': '.#.|.#.|.#.|...|.#.', '?': '##.|..#|.#.|...|.#.',
-    '>': '#..|.#.|..#|.#.|#..', '[': '##.|#..|#..|#..|##.', ']': '.##|..#|..#|..#|.##',
-    '(': '.##|#..|#..|#..|.##', ')': '##.|..#|..#|..#|##.', ',': '...|...|...|.#.|#..', "'": '.#.|.#.|...|...|...', ' ': '...|...|...|...|...',
+    A: '01110,10001,10001,11111,10001,10001,10001', B: '11110,10001,10001,11110,10001,10001,11110', C: '01110,10001,10000,10000,10000,10001,01110',
+    D: '11100,10010,10001,10001,10001,10010,11100', E: '11111,10000,10000,11110,10000,10000,11111', F: '11111,10000,10000,11110,10000,10000,10000',
+    G: '01110,10001,10000,10111,10001,10001,01111', H: '10001,10001,10001,11111,10001,10001,10001', I: '01110,00100,00100,00100,00100,00100,01110',
+    J: '00111,00010,00010,00010,00010,10010,01100', K: '10001,10010,10100,11000,10100,10010,10001', L: '10000,10000,10000,10000,10000,10000,11111',
+    M: '10001,11011,10101,10101,10001,10001,10001', N: '10001,10001,11001,10101,10011,10001,10001', O: '01110,10001,10001,10001,10001,10001,01110',
+    P: '11110,10001,10001,11110,10000,10000,10000', Q: '01110,10001,10001,10001,10101,10010,01101', R: '11110,10001,10001,11110,10100,10010,10001',
+    S: '01111,10000,10000,01110,00001,00001,11110', T: '11111,00100,00100,00100,00100,00100,00100', U: '10001,10001,10001,10001,10001,10001,01110',
+    V: '10001,10001,10001,10001,10001,01010,00100', W: '10001,10001,10001,10101,10101,10101,01010', X: '10001,10001,01010,00100,01010,10001,10001',
+    Y: '10001,10001,10001,01010,00100,00100,00100', Z: '11111,00001,00010,00100,01000,10000,11111',
+    0: '01110,10001,10011,10101,11001,10001,01110', 1: '00100,01100,00100,00100,00100,00100,01110', 2: '01110,10001,00001,00010,00100,01000,11111',
+    3: '11111,00010,00100,00010,00001,10001,01110', 4: '00010,00110,01010,10010,11111,00010,00010', 5: '11111,10000,11110,00001,00001,10001,01110',
+    6: '00110,01000,10000,11110,10001,10001,01110', 7: '11111,00001,00010,00100,01000,01000,01000', 8: '01110,10001,10001,01110,10001,10001,01110',
+    9: '01110,10001,10001,01111,00001,00010,01100',
+    '.': '00000,00000,00000,00000,00000,01100,01100', ':': '00000,01100,01100,00000,01100,01100,00000', '/': '00001,00010,00010,00100,01000,01000,10000',
+    '-': '00000,00000,00000,11111,00000,00000,00000', '+': '00000,00100,00100,11111,00100,00100,00000', '%': '11001,11010,00010,00100,01000,01011,10011',
+    '!': '00100,00100,00100,00100,00100,00000,00100', '?': '01110,10001,00001,00010,00100,00000,00100', '>': '10000,01000,00100,00010,00100,01000,10000',
+    '<': '00001,00010,00100,01000,00100,00010,00001', '[': '01110,01000,01000,01000,01000,01000,01110', ']': '01110,00010,00010,00010,00010,00010,01110',
+    '(': '00010,00100,01000,01000,01000,00100,00010', ')': '01000,00100,00010,00010,00010,00100,01000', ',': '00000,00000,00000,00000,00110,00100,01000',
+    "'": '00100,00100,01000,00000,00000,00000,00000', ' ': '00000,00000,00000,00000,00000,00000,00000',
+    '=': '00000,00000,11111,00000,11111,00000,00000', '&': '01100,10010,10100,01000,10101,10010,01101', '*': '00000,10101,01110,11111,01110,10101,00000',
   };
   const out = {};
-  for (const k in g) out[k] = g[k].split('|');
+  for (const k in g) out[k] = g[k].split(',').map(r => r.replace(/1/g, '#').replace(/0/g, '.'));
   return out;
 })();

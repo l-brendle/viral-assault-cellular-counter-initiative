@@ -32,7 +32,7 @@ const LEVELS = {
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
-    tune: { solo: { spawn: 1, swarm: 1, dmg: 1, hp: 1, sab: 0.7, arc: 0.74 }, camp: { spawn: 0.59, swarm: 1.7, dmg: 1.7, hp: 1.3, sab: 0.53, arc: 0.53 } },
+    tune: { solo: { spawn: 1, swarm: 1, dmg: 1, hp: 1, sab: 0.7, arc: 0.59 }, camp: { spawn: 0.59, swarm: 1.7, dmg: 1.7, hp: 1.3, sab: 0.53, arc: 0.53 } },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
@@ -146,8 +146,8 @@ function setFullscreen(mode) {
 function requestFs(mode, e) { if (e.pointerType === 'mouse') setFullscreen(mode); else fsPending = mode; }
 document.addEventListener('fullscreenchange', resize);
 document.addEventListener('webkitfullscreenchange', resize);
-const fsBtnPlay = () => ({ x: VIEW_W - 34, y: 26, w: 14, h: 13 });
-const fsBtnTitle = () => ({ x: VIEW_W - 54, y: 4, w: 50, h: 14 });
+const fsBtnPlay = () => ({ x: VIEW_W - 34, y: 42, w: 14, h: 13 });
+const fsBtnTitle = () => ({ x: VIEW_W - 70, y: 4, w: 66, h: 14 });
 // click / tap on a weak spot (within reach) -> tail poke
 function pokeClick(fingers) {
   const wx = mouse.sx + cam.x, wy = mouse.sy + cam.y;
@@ -176,8 +176,8 @@ function toggleFire(idx) {   // shooting on/off, per player (once unlocked)
   tip(me.x, me.y - 14, me.autoFire ? 'FIRE ON' : 'FIRE OFF', '#ffd88a');
   sfx('fire', me.autoFire ? 600 : 300, 0.06, 'square', 0.02);
 }
-const fireBtn = () => ({ x: VIEW_W - 64, y: VIEW_H - 126, w: 40, h: 14 });
-const pauseBtn = () => ({ x: VIEW_W - 18, y: 26, w: 14, h: 13 });
+const fireBtn = () => ({ x: VIEW_W - 78, y: VIEW_H - 112, w: 54, h: 14 });
+const pauseBtn = () => ({ x: VIEW_W - 18, y: 42, w: 14, h: 13 });
 const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 function doPause() { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
 
@@ -308,7 +308,7 @@ let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 const UPGRADES = [
   { id: 'aura',   name: 'ANTISEPTIC AURA',  desc: ['HURTS VIRUSES', 'AROUND YOU'] },
   { id: 'orbit',  name: 'PLATELET ORBIT',   desc: ['PLATELETS CIRCLE', 'YOU AND SMASH'] },
-  { id: 'shoot',  name: 'ANTIBODY SHOT',    desc: ['UNLOCKS SHOOTING', 'AT NEARBY VIRUSES'], max: 1 },
+  { id: 'shoot',  name: 'ANTIBODY SHOT',    desc: ['UNLOCKS SHOOTING', 'AT NEAR VIRUSES'], max: 1 },
   { id: 'split',  name: 'MITOSIS',          desc: ['SPLIT OFF CHILD', 'ALLIES REGULARLY'] },
   { id: 'rate',   name: 'RAPID ANTIBODIES', desc: ['SHOOT FASTER'], needs: 'shoot' },
   { id: 'multi',  name: 'SPLIT ANTIBODY',   desc: ['+1 SHOT PER', 'VOLLEY'], needs: 'shoot' },
@@ -316,7 +316,7 @@ const UPGRADES = [
   { id: 'speed',  name: 'SWIFT CELL',       desc: ['RUN FASTER'] },
   { id: 'magnet', name: 'CYTOKINE PULL',    desc: ['PULL XP FROM', 'FURTHER AWAY'] },
   { id: 'regen',  name: 'IMMUNE MEMORY',    desc: ['SHAKE OFF', 'INFECTION FASTER'] },
-  { id: 'reach',  name: 'LONG TAIL',        desc: ['POKE WEAK SPOTS', 'FROM FURTHER AWAY'] },
+  { id: 'reach',  name: 'LONG TAIL',        desc: ['POKE WEAK SPOTS', 'FROM FARTHER OUT'] },
 ];
 const MAX_UP = 5;
 const PCOL = ['#8fd0ff', '#ffc070'];   // per-player UI colours
@@ -700,7 +700,7 @@ function hazardsStep(dt, alive) {
         let tx, ty;
         if (Math.random() < 0.5) { const p = pickP(); tx = p.x + rand(-40, 40); ty = p.y + rand(-40, 40); }
         else { const a = rand(0, 6.283), d = rand(60, 240); tx = lung.x + Math.cos(a) * d; ty = lung.y + Math.sin(a) * d; }
-        G.globs.push({ sx: lung.x, sy: lung.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 1 + rand(0, 0.3) });
+        G.globs.push({ sx: lung.x, sy: lung.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 2.2 + rand(0, 0.4) });
       }
       burst(lung.x, lung.y, '#9ae05a', 10, 60); sfx('spit', 200, 0.2, 'sawtooth', 0.03, -80);
     }
@@ -810,7 +810,7 @@ function fixStep(dt, alive) {
 // Brain: lit (active) synapses regularly spark lightning that hurts viruses and anyone else it touches (you, if you stand
 // too close). Sick synapses stop sparking and breed spark enemies instead. Dark synapses stop lighting their area, so the
 // level goes dark; phase 3 makes the active synapses crackle much faster.
-const BOLT = { warn: 0.4, fire: 0.18, reach: 125 };
+const BOLT = { warn: 0.95, fire: 0.18, reach: 125 };   // a long warning: time to step out of the lane
 function brainStep(dt, alive, phase) {
   for (const f of G.fix) {
     if (f.st > 0) {
@@ -822,14 +822,15 @@ function brainStep(dt, alive, phase) {
     f.spawnMax = 0;
     f.boltT = (f.boltT == null ? rand(1, 4) : f.boltT) - dt;
     if (f.boltT <= 0) {
-      f.boltT = rand(2.6, 4.4) * (phase >= 2 ? 0.85 : 1) * (phase >= 3 ? 0.6 : 1);
-      let a = rand(0, 6.283), best = null, bd = BOLT.reach + 15;   // it likes to strike a virus within reach, otherwise any direction
-      for (const u of G.units) if (u.team === 'v' && !u.dead) { const d = dist(f, u); if (d < bd) { bd = d; best = u; } }
-      if (best && Math.random() < 0.75) a = Math.atan2(best.y - f.y, best.x - f.x);
-      if (G.bolts.length < 14) {
-        G.bolts.push({ x: f.x, y: f.y, a, len: BOLT.reach * rand(0.8, 1), t: 0, warn: BOLT.warn, fire: BOLT.fire, fired: false, seed: Math.floor(Math.random() * 1000) });
-        if (!G.boltWarned) { G.boltWarned = true; say('LIT SYNAPSES SPARK. IT HURTS VIRUSES AND YOU'); }
+      f.boltT = rand(1.4, 2.6) * (phase >= 2 ? 0.85 : 1) * (phase >= 3 ? 0.6 : 1);
+      const n = Math.random() < 0.3 ? 2 : 1;   // now and then a double discharge
+      for (let k = 0; k < n; k++) {
+        let a = rand(0, 6.283), best = null, bd = BOLT.reach + 15;   // it likes to strike a virus within reach, otherwise any direction
+        for (const u of G.units) if (u.team === 'v' && !u.dead) { const d = dist(f, u) + (k ? rand(0, 60) : 0); if (d < bd) { bd = d; best = u; } }
+        if (best && Math.random() < 0.75) a = Math.atan2(best.y - f.y, best.x - f.x);
+        if (G.bolts.length < 28) G.bolts.push({ x: f.x, y: f.y, a, len: BOLT.reach * rand(0.8, 1), t: k * 0.12, warn: BOLT.warn, fire: BOLT.fire, fired: false, seed: Math.floor(Math.random() * 1000) });
       }
+      if (!G.boltWarned) { G.boltWarned = true; say('LIT SYNAPSES SPARK. IT HURTS VIRUSES AND YOU'); }
     }
   }
   for (const b of G.bolts) {
@@ -860,7 +861,7 @@ function lungStep(dt, alive, phase) {
         let tx, ty;
         if (Math.random() < 0.5) { const p = alive[Math.floor(Math.random() * alive.length)]; tx = p.x + rand(-40, 40); ty = p.y + rand(-40, 40); }
         else { const a = rand(0, 6.283), d = rand(60, 200); tx = f.x + Math.cos(a) * d; ty = f.y + Math.sin(a) * d; }
-        G.globs.push({ sx: f.x, sy: f.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 1 + rand(0, 0.3) });
+        G.globs.push({ sx: f.x, sy: f.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 2.2 + rand(0, 0.4) });
         burst(f.x, f.y, '#9ae05a', 8, 50); sfx('spit', 200, 0.2, 'sawtooth', 0.03, -80);
       }
     }
@@ -1200,15 +1201,15 @@ function update(dt) {
 // ---------------------------------------------------------------- drawing
 function drawText(s, x, y, col = '#fff', sc = 1, align = 'l', shadow = true) {
   s = String(s).toUpperCase();
-  const w = s.length * 4 * sc - sc;
+  const w = s.length * FONT_ADV * sc - sc;
   if (align === 'c') x -= w / 2; else if (align === 'r') x -= w;
   x = Math.round(x); y = Math.round(y);
   for (const pass of shadow ? [1, 0] : [0]) {
     ctx.fillStyle = pass ? '#000' : col;
     for (let i = 0; i < s.length; i++) {
       const gl = FONT[s[i]]; if (!gl) continue;
-      for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++)
-        if (gl[r][c] === '#') ctx.fillRect(x + (i * 4 + c) * sc + pass * sc, y + r * sc + pass * sc, sc, sc);
+      for (let r = 0; r < FONT_H; r++) for (let c = 0; c < FONT_W; c++)
+        if (gl[r][c] === '#') ctx.fillRect(x + (i * FONT_ADV + c) * sc + pass * sc, y + r * sc + pass * sc, sc, sc);
     }
   }
 }
@@ -1262,8 +1263,34 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
   drawLash(bx, by, bx + Math.cos(a) * len, by + Math.sin(a) * len, 2, col, '#12204a', null, p.idx);
 }
 
+// slime in flight: a pulsing landing zone (drawn above units and allies so it stays readable in a crowd) and the glob itself
+function drawGlobs() {
+  for (const g of G.globs) {
+    const k = Math.min(1, g.t / g.dur), gx = g.sx + (g.tx - g.sx) * k, gy = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 46;
+    const pu = 0.5 + 0.5 * Math.sin(G.t * (8 + 14 * k)), cx = g.tx - cam.x + shx, cy = g.ty - cam.y + shy;
+    ctx.fillStyle = '#9ae05a'; ctx.globalAlpha = 0.08 + 0.2 * k * (0.6 + 0.4 * pu);
+    ctx.beginPath(); ctx.ellipse(cx, cy, 20, 14, 0, 0, 6.283); ctx.fill();
+    ctx.setLineDash([3, 2]); ctx.strokeStyle = '#e8ff9a'; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + 0.5 * k * (0.5 + 0.5 * pu);
+    ctx.beginPath(); ctx.ellipse(cx, cy, 20, 14, 0, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#9ae05a'; ctx.lineWidth = 1; ctx.globalAlpha = 0.6 + 0.4 * pu;
+    const r = 6 + 14 * (1 - k); ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.7, 0, 0, 6.283); ctx.stroke();   // closes in as it is about to land
+    ctx.globalAlpha = 1;
+    rect(gx - 2 - cam.x + shx, gy + 1 - cam.y + shy, 5, 2, '#000', 0.3);
+    rect(gx - 3 - cam.x + shx, gy - h - 3 - cam.y + shy, 6, 6, '#2f6a16'); rect(gx - 2 - cam.x + shx, gy - h - 2 - cam.y + shy, 4, 4, '#9ae05a'); rect(gx - 1 - cam.x + shx, gy - h - 2 - cam.y + shy, 1, 1, '#fff');
+  }
+}
+
 // lightning from lit synapses: a faint charging line, then a jagged bright bolt
 function drawBolts() {
+  for (const f of G.fix) {   // tiny sparks crackling around every lit synapse
+    if (f.st !== 0) continue;
+    for (let k = 0; k < 5; k++) {
+      const ph = G.t * (3 + k * 1.3) + f.i * 2.1 + k * 1.7, vis = Math.sin(ph * 3.1) > 0.35;
+      if (!vis) continue;
+      const a = ph * 1.9 + k * 1.26, r = 13 + 8 * Math.abs(Math.sin(ph));
+      rect(f.x + Math.cos(a) * r - cam.x + shx, f.y + Math.sin(a) * r - cam.y + shy, k % 2 ? 2 : 1, k % 2 ? 1 : 2, k % 2 ? '#e8f4ff' : '#8ab4ff', 0.9);
+    }
+  }
   for (const b of G.bolts) {
     const ca = Math.cos(b.a), sa = Math.sin(b.a), firing = b.t >= b.warn, n = Math.max(3, Math.floor(b.len / 9));
     const pts = [];
@@ -1272,8 +1299,13 @@ function drawBolts() {
       pts.push([b.x + ca * b.len * k - sa * off - cam.x + shx, b.y + sa * b.len * k + ca * off - cam.y + shy]);
     }
     const path = () => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
-    if (!firing) {   // charging: the line flickers in
-      ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.15 + 0.35 * (b.t / b.warn) * (0.6 + 0.4 * Math.sin(b.t * 40)); path(); ctx.stroke();
+    if (!firing) {   // charging: a bright dashed lane that grows more urgent, with a target ring at the far end
+      const k = Math.min(1, Math.max(0, b.t) / b.warn), pu = 0.5 + 0.5 * Math.sin(b.t * (10 + 22 * k));
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = '#4a6aff'; ctx.lineWidth = 7; ctx.globalAlpha = 0.12 + 0.22 * k * (0.6 + 0.4 * pu); path(); ctx.stroke();
+      ctx.setLineDash([4, 3]); ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.45 + 0.5 * k * (0.5 + 0.5 * pu); path(); ctx.stroke(); ctx.setLineDash([]);
+      const ex = b.x + ca * b.len - cam.x + shx, ey = b.y + sa * b.len - cam.y + shy, rr = 4 + 5 * (1 - k);
+      ctx.strokeStyle = '#bfe0ff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.5 + 0.5 * pu; ctx.beginPath(); ctx.arc(ex, ey, rr, 0, 6.283); ctx.stroke();
     } else {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#4a6aff'; ctx.lineWidth = 5; ctx.globalAlpha = 0.35; path(); ctx.stroke();
@@ -1325,7 +1357,8 @@ function render() {
   ctx.strokeStyle = lvl().edge; ctx.lineWidth = 2; ctx.strokeRect(-cam.x + shx - 1, -cam.y + shy - 1, CFG.W + 2, CFG.H + 2);
 
   // which players can poke right now (drives the weak-spot brackets)
-  const pokers = (isGuest() ? [players[meIdx()]] : net ? [players[0]] : players).filter(p => p && !p.down);
+  // who could poke right now: not down, not mid-lash and not on cooldown (the weak-spot highlight and CLICK / TAP hint only show then)
+  const pokers = (isGuest() ? [players[meIdx()]] : net ? [players[0]] : players).filter(p => p && !p.down && !p.tail && !p.tailG && !(p.pokeCd > 0));
   const bodyRing = (cx, cy, r) => {
     const n = Math.max(14, Math.round(r * 3.2)), al = 0.5 + 0.4 * Math.sin(G.t * 7);
     for (let i = 0; i < n; i++) { const t = i / n * 6.283 + G.t; rect(cx + Math.cos(t) * r - cam.x + shx, cy + Math.sin(t) * r - cam.y + shy, 1, 1, i % 2 ? '#fff' : '#ffe070', al); }
@@ -1336,13 +1369,6 @@ function render() {
   for (const sl of G.slimes) {
     ctx.globalAlpha = 0.9 * Math.min(1, sl.life / 2);
     sprite(SPR.slime, sl.x, sl.y, Math.round(sl.r * 2.8), Math.round(sl.r * 2.1)); ctx.globalAlpha = 1;
-  }
-  for (const g of G.globs) {
-    const k = g.t / g.dur, gx = g.sx + (g.tx - g.sx) * k, gy = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 46;
-    const pulse = 0.4 + 0.5 * Math.sin(G.t * 12);
-    for (let i = 0; i < 18; i++) { const t = i / 18 * 6.283 + G.t * 2; rect(g.tx + Math.cos(t) * 15 - cam.x + shx, g.ty + Math.sin(t) * 10 - cam.y + shy, 2, 1, '#9ae05a', (0.35 + 0.5 * k) * (0.6 + pulse * 0.4)); }
-    rect(gx - 2 - cam.x + shx, gy + 1 - cam.y + shy, 5, 2, '#000', 0.3);
-    rect(gx - 3 - cam.x + shx, gy - h - 3 - cam.y + shy, 6, 6, '#2f6a16'); rect(gx - 2 - cam.x + shx, gy - h - 2 - cam.y + shy, 4, 4, '#9ae05a'); rect(gx - 1 - cam.x + shx, gy - h - 2 - cam.y + shy, 1, 1, '#fff');
   }
   for (const pl of G.pills) {
     if (pl.life < 5 && Math.floor(G.t * 6) % 2) continue;   // blinks before vanishing
@@ -1529,6 +1555,7 @@ function render() {
       if (x > 0 && x < VIEW_W && y > 0 && y < VIEW_H) rect(x, y, 2, 2, i % 3 ? '#ff8a98' : '#ffd0d6', 0.5);
     }
   }
+  drawGlobs();
   if (lvKey === 'brain') { drawDarkness(); drawBolts(); }
   if (lvKey === 'lung') {
     const br = breathY();
@@ -1553,7 +1580,7 @@ function render() {
   if (state === 'title') drawTitle();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
-  if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 5, '#fff', 3, 'c'); }
+  if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) rect(mx + dx, my + dy, 1, 1, '#fff');
@@ -1564,25 +1591,25 @@ function drawHud() {
   if (state === 'title') return;
   const n = players.length;
   players.forEach((p, i) => {
-    const y = 4 + i * 14, label = n > 1 ? 'P' + (i + 1) + ' INFECTION' : 'INFECTION';
+    const y = 4 + i * 17, label = n > 1 ? 'P' + (i + 1) + ' INFECTION' : 'INFECTION';
     drawText(label, 4, y, p.down ? '#9ae05a' : (n > 1 ? PCOL[i] : '#ffb0b8'));
-    rect(3, y + 7, 82, 7, '#000'); rect(4, y + 8, 80, 5, '#3a1018');
-    rect(4, y + 8, Math.round(80 * Math.min(1, p.infection / 100)), 5, p.infection > 70 ? '#ff4040' : '#d86a30');
+    rect(3, y + 8, 82, 7, '#000'); rect(4, y + 9, 80, 5, '#3a1018');
+    rect(4, y + 9, Math.round(80 * Math.min(1, p.infection / 100)), 5, p.infection > 70 ? '#ff4040' : '#d86a30');
   });
-  const xy = 4 + n * 14;
+  const xy = 4 + n * 17;
   rect(3, xy, 82, 5, '#000'); rect(4, xy + 1, 80, 3, '#102840');
   rect(4, xy + 1, Math.round(80 * S.xp / S.next), 3, '#38b8ff');
-  drawText('LV ' + S.level + '  RES ' + Math.round(S.res * 100) + '%', 4, xy + 7, '#bfe8ff');
+  drawText('LV ' + S.level + '  RES ' + Math.round(S.res * 100) + '%', 4, xy + 8, '#bfe8ff');
   const keyHint = touchUI ? '' : (coop && !net ? ' [F/U]' : ' [F]');
-  if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + 'FIRE ' + (p.autoFire ? 'ON' : 'OFF')).join('  ') + keyHint, 4, xy + 14, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
+  if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + 'FIRE ' + (p.autoFire ? 'ON' : 'OFF')).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
   {   // active medicine effects
     const locals = isGuest() ? [players[meIdx()]] : net ? [players[0]] : players;
-    let by = xy + 14 + (S.shoot ? 7 : 0);
+    let by = xy + 17 + (S.shoot ? 9 : 0);
     for (const p of locals) {
       if (!p) continue;
       const list = [['speed', 'SPEED'], ['shield', 'SHIELD'], ['poke', 'POKE+'], ['bloat', 'BIG'], ['slow', 'SLOW']].filter(([k]) => p.fx[k] > 0).map(([k, nm]) => nm + ' ' + Math.ceil(p.fx[k]));
       if (!list.length) continue;
-      drawText((locals.length > 1 ? 'P' + (p.idx + 1) + ' ' : '') + list.join('  '), 4, by, p.fx.slow > 0 || p.fx.bloat > 0 ? '#ffd88a' : '#7fffd0'); by += 7;
+      drawText((locals.length > 1 ? 'P' + (p.idx + 1) + ' ' : '') + list.join('  '), 4, by, p.fx.slow > 0 || p.fx.bloat > 0 ? '#ffd88a' : '#7fffd0'); by += 9;
     }
   }
   // timer
@@ -1590,9 +1617,9 @@ function drawHud() {
   drawText(mm + ':' + String(ss).padStart(2, '0'), VIEW_W / 2, 4, '#fff', 2, 'c');
   if (G.fix.length) {
     const heart = lvKey === 'heart', T = lvl().txt, O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
-    rect(x - 1, 16, w + 2, 7, '#000'); rect(x, 17, w, 5, '#102840'); rect(x, 17, Math.round(w * 0.15), 5, '#3a1018'); rect(x, 17, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
-    rect(x + Math.round(w * 0.15), 16, 1, 7, '#ff5050');   // below this line the countdown to losing starts
-    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(GRACE() - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 24, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
+    rect(x - 1, 20, w + 2, 7, '#000'); rect(x, 21, w, 5, '#102840'); rect(x, 21, Math.round(w * 0.15), 5, '#3a1018'); rect(x, 21, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
+    rect(x + Math.round(w * 0.15), 20, 1, 7, '#ff5050');   // below this line the countdown to losing starts
+    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(GRACE() - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 29, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
     if (heart) {
       const fv = Math.round((1 - O) * 100), pu = beatPulse(), ic = SPR.heartIcon, k = 1 + 0.5 * pu;
       ctx.drawImage(ic, Math.round(VIEW_W / 2 - 22 - ic.width * k / 2), Math.round(VIEW_H - 14 - (k - 1) * 4), Math.round(ic.width * k), Math.round(ic.height * k));
@@ -1603,24 +1630,24 @@ function drawHud() {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
     }
-    drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 22, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
+    drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 26, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
     G.fix.forEach((f, i) => { const bx = 4 + i * 9; rect(bx - 1, VIEW_H - 13, 8, 10, '#000', 0.7); rect(bx, VIEW_H - 12, 6, 8, ['#2a9ac0', '#c8a020', '#b04030'][f.st]); });
   }
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
-  drawText('KILLS ' + G.kills, VIEW_W - 4, 11, '#fff', 1, 'r');
-  drawText('TURNED ' + G.conv, VIEW_W - 4, 18, '#7fe8ff', 1, 'r');
-  if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + lvl().name, VIEW_W - 4, 25, '#ffe070', 1, 'r');
+  drawText('KILLS ' + G.kills, VIEW_W - 4, 13, '#fff', 1, 'r');
+  drawText('TURNED ' + G.conv, VIEW_W - 4, 22, '#7fe8ff', 1, 'r');
+  if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + lvl().name, VIEW_W - 4, 31, '#ffe070', 1, 'r');
   // organs
   organs.forEach((o, i) => {
-    const x = 4 + i * 17, y = VIEW_H - 12, inf = o.team === 'v';
-    rect(x - 1, y - 1, 16, 10, '#000', 0.7);
-    rect(x, y, 14, 8, inf ? '#3f6a22' : '#1c4a78');
-    drawText(o.tag, x + 1, y + 1, inf ? '#e8ff7a' : '#fff', 1, 'l', false);
+    const x = 4 + i * 24, y = VIEW_H - 14, inf = o.team === 'v';
+    rect(x - 1, y - 1, 24, 13, '#000', 0.7);
+    rect(x, y, 22, 11, inf ? '#3f6a22' : '#1c4a78');
+    drawText(o.tag, x + 2, y + 2, inf ? '#e8ff7a' : '#fff', 1, 'l', false);
   });
   if (G.msgT > 0) {
-    const sc = G.msg.length * 8 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * 4 * sc + 12, my = G.fix.length ? 34 : 28;   // long messages drop to small text so they fit narrow screens
-    rect(VIEW_W / 2 - w / 2, my, w, sc * 6, '#000', 0.6);
-    drawText(G.msg, VIEW_W / 2, my + sc * 1.5, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
+    const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 48;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
+    rect(VIEW_W / 2 - w / 2, my, w, FONT_H * sc + 4, '#000', 0.6);
+    drawText(G.msg, VIEW_W / 2, my + 2, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
@@ -1651,7 +1678,7 @@ function drawTouch() {
   if (S.shoot) {   // FIRE toggle button
     const b = fireBtn(), me = isGuest() ? players[meIdx()] : players[0], on = !me || me.autoFire;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, on ? '#7fffd0' : '#ff9a9a', 0.7); rect(b.x, b.y, b.w, b.h, '#12204a', 0.85);
-    drawText(on ? 'FIRE ON' : 'FIRE OFF', b.x + b.w / 2, b.y + 5, on ? '#7fffd0' : '#ff9a9a', 1, 'c');
+    drawText(on ? 'FIRE ON' : 'FIRE OFF', b.x + b.w / 2, b.y + 4, on ? '#7fffd0' : '#ff9a9a', 1, 'c');
   }
   if (fsAvail()) {   // fullscreen toggle: four corner brackets
     const f = fsBtnPlay();
@@ -1666,7 +1693,7 @@ function drawTouch() {
 
 const TBW = 94, TBH = 20;
 const tbtn = i => ({ x: i % 2 ? 4 : -98, y: VIEW_H - 76 + (i >> 1) * 24 });   // 2x2 button grid anchored to the bottom
-const lvBtn = () => ({ x: VIEW_W / 2 - 75, y: VIEW_H - 87, w: 150, h: 10 });
+const lvBtn = () => ({ x: VIEW_W / 2 - 75, y: VIEW_H - 88, w: 150, h: 11 });
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
   if (inRect(lvBtn(), mx, my)) return 5;
@@ -1676,7 +1703,7 @@ function titleBtnAt(mx, my) {
 function drawTitle() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.55);
   const c = VIEW_W / 2, compact = VIEW_H < 220;
-  drawText('VACCINE', c, compact ? 6 : 12, '#9ae05a', compact ? 4 : 5, 'c');
+  drawText('VACCINE', c, compact ? 4 : 10, '#9ae05a', compact ? 3 : 4, 'c');
   drawText('VIRAL ASSAULT CELLULAR COUNTER-INITIATIVE', c, compact ? 28 : 42, '#bfe8ff', 1, 'c');
   drawText('NANO EDITION', c, compact ? 38 : 52, '#ffe070', 1, 'c');
   if (!compact) {
@@ -1685,28 +1712,28 @@ function drawTitle() {
     ctx.drawImage(SPR.virus.basic, c - 66, 70); ctx.drawImage(SPR.virus.brute, c + 40, 64); ctx.drawImage(SPR.virus.runner, c - 86, 88);
   }
   let lines = touchUI
-    ? ['TOUCH: LEFT STICK MOVES, RIGHT STICK AIMS, TAP A WEAK SPOT TO POKE', 'ONLINE CO-OP WORKS BETWEEN PHONES AND COMPUTERS']
-    : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES (F: TOGGLE SHOOTING)', 'LOCAL CO-OP: P1 WASD + MOUSE   P2 ARROWS + IJKL (OR GAMEPADS)'];
-  lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS THE VIRUS INTO AN ALLY. CO-OP: DISTRACT + POKE!',
-    lvSel === 'campaign' ? 'CAMPAIGN: BRAIN, LUNGS, THEN HEART. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
+    ? ['LEFT STICK MOVES, RIGHT STICK AIMS', 'ONLINE CO-OP WORKS BETWEEN PHONES AND PCS']
+    : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'LOCAL CO-OP: P1 WASD + MOUSE, P2 ARROWS + IJKL'];
+  lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS VIRUSES INTO ALLIES',
+    lvSel === 'campaign' ? 'CAMPAIGN: BRAIN, LUNGS, HEART. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
   if (compact) lines = [lines[0], lines[2], lines[4]];
-  lines.forEach((t, i) => drawText(t, c, (compact ? 56 : 106) + i * 10, i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
+  lines.forEach((t, i) => drawText(t, c, (compact ? 52 : 100) + i * (compact ? 10 : 9), i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
   const labels = touchUI ? ['1 PLAYER', 'LOCAL CO-OP', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] LOCAL CO-OP', '[3] HOST ONLINE', '[4] JOIN ONLINE'];
   {
     const b = lvBtn(), h = hov === 5 && !touchUI;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#7a6a30'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
-    drawText('LEVEL: ' + (lvSel === 'campaign' ? 'CAMPAIGN' : lvl().name) + (touchUI ? '' : ' [L]'), c, b.y + 3, '#ffe070', 1, 'c');
+    drawText('LEVEL: ' + (lvSel === 'campaign' ? 'CAMPAIGN' : lvl().name) + (touchUI ? '' : ' [L]'), c, b.y + 2, '#ffe070', 1, 'c');
   }
   for (let i = 0; i < 4; i++) {
     const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
-    drawText(labels[i], x + TBW / 2, b.y + 8, '#fff', 1, 'c');
+    drawText(labels[i], x + TBW / 2, b.y + 6, '#fff', 1, 'c');
   }
   if (fsAvail()) {
     const f = fsBtnTitle();
     rect(f.x - 1, f.y - 1, f.w + 2, f.h + 2, '#4aa8ff'); rect(f.x, f.y, f.w, f.h, '#12204a');
-    drawText(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN', f.x + f.w / 2, f.y + 5, '#fff', 1, 'c');
+    drawText(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN', f.x + f.w / 2, f.y + 4, '#fff', 1, 'c');
   }
   const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
   drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
@@ -1716,31 +1743,32 @@ function drawLobby() {
   for (let y = 0; y < VIEW_H; y += 64) for (let x = 0; x < VIEW_W; x += 64) ctx.drawImage(SPR.bg, x, y);
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.6);
   const c = VIEW_W / 2, hov = lobbyButtons().find(b => inRect(b, mouse.sx, mouse.sy));
-  drawText('ONLINE CO-OP', c, 12, '#7fe8ff', 3, 'c');
+  drawText('ONLINE CO-OP', c, 10, '#7fe8ff', 2, 'c');
   if (lobby.mode === 'host') {
     drawText('YOUR ROOM CODE', c, 56, '#bfe8ff', 1, 'c');
     drawText(lobby.code || '....', c, 70, '#ffe070', 5, 'c');
-    drawText('YOUR FRIEND PICKS JOIN ONLINE AND TYPES THE CODE.', c, 112, '#fff', 1, 'c');
-    drawText('OR SEND THEM THIS LINK:', c, 122, '#fff', 1, 'c');
-    drawText(location.host + '/?room=' + lobby.code, c, 136, '#ffd88a', 1, 'c');
+    drawText('YOUR FRIEND PICKS JOIN ONLINE, TYPES THE CODE', c, 112, '#fff', 1, 'c');
+    drawText('OR SEND THEM THIS LINK:', c, 121, '#fff', 1, 'c');
+    drawText(location.host, c, 130, '#ffd88a', 1, 'c');
+    drawText('/?room=' + lobby.code, c, 139, '#ffd88a', 1, 'c');
   } else {
     drawText('ENTER ROOM CODE', c, 34, '#bfe8ff', 1, 'c');
     for (let i = 0; i < 4; i++) {
       const x = c - 52 + i * 27;
       rect(x - 1, 45, 26, 28, '#4aa8ff'); rect(x, 46, 24, 26, '#12204a');
-      if (lobby.code[i]) drawText(lobby.code[i], x + 12, 53, '#ffe070', 3, 'c');
+      if (lobby.code[i]) drawText(lobby.code[i], x + 12, 49, '#ffe070', 3, 'c');
     }
   }
   for (const b of lobbyButtons()) {
     const h = hov === b, special = b.id.length > 1;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : special ? '#ffc070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
-    drawText(b.id, b.x + b.w / 2, b.y + 5, '#fff', 1, 'c');
+    drawText(b.id, b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
   }
   const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
-  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 146 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
+  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 152 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
 }
 
-const CARD = { w: 92, h: 84, gap: 8, y: 92 };
+const CARD = { w: 100, h: 84, gap: 4, y: 92 };
 function cardRect(i) { const tot = 3 * CARD.w + 2 * CARD.gap; return { x: VIEW_W / 2 - tot / 2 + i * (CARD.w + CARD.gap), y: CARD.y, w: CARD.w, h: CARD.h }; }
 function cardAt(mx, my) {
   for (let i = 0; i < choices.length; i++) { const r = cardRect(i); if (mx >= r.x && mx < r.x + r.w && my >= r.y && my < r.y + r.h) return i; }
@@ -1748,10 +1776,10 @@ function cardAt(mx, my) {
 }
 function drawLevelUp() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.65);
-  drawText('LEVEL UP!', VIEW_W / 2, 24, '#ffe070', 4, 'c');
-  drawText('YOU GREW BIGGER AND MORE RESISTANT', VIEW_W / 2, 52, '#bfe8ff', 1, 'c');
-  drawText('RESISTANCE ' + Math.round(S.res * 100) + '%', VIEW_W / 2, 62, '#7fffd0', 1, 'c');
-  drawText('CHOOSE AN UPGRADE', VIEW_W / 2, 78, '#fff', 1, 'c');
+  drawText('LEVEL UP!', VIEW_W / 2, 18, '#ffe070', 3, 'c');
+  drawText('YOU GREW BIGGER AND MORE RESISTANT', VIEW_W / 2, 46, '#bfe8ff', 1, 'c');
+  drawText('RESISTANCE ' + Math.round(S.res * 100) + '%', VIEW_W / 2, 56, '#7fffd0', 1, 'c');
+  drawText('CHOOSE AN UPGRADE', VIEW_W / 2, 72, '#fff', 1, 'c');
   const hov = cardAt(mouse.sx, mouse.sy);
   choices.forEach((u, i) => {
     const r = cardRect(i), lv = S.up[u.id] || 0, h = hov === i;
@@ -1759,7 +1787,7 @@ function drawLevelUp() {
     rect(r.x, r.y, r.w, r.h, h ? '#243c78' : '#12204a');
     drawText('[' + (i + 1) + ']', r.x + 4, r.y + 4, '#8aa0d0');
     drawText(u.name, r.x + r.w / 2, r.y + 16, '#fff', 1, 'c');
-    u.desc.forEach((t, j) => drawText(t, r.x + r.w / 2, r.y + 32 + j * 8, '#bfe8ff', 1, 'c'));
+    u.desc.forEach((t, j) => drawText(t, r.x + r.w / 2, r.y + 32 + j * 9, '#bfe8ff', 1, 'c'));
     drawText(lv === 0 ? 'NEW!' : 'LV ' + lv + ' > ' + (lv + 1), r.x + r.w / 2, r.y + r.h - 12, lv === 0 ? '#7fffd0' : '#ffe070', 1, 'c');
     const pips = u.max || MAX_UP;
     for (let s = 0; s < pips; s++) rect(r.x + r.w / 2 - (pips * 6 - 2) / 2 + s * 6, r.y + r.h - 20, 4, 3, s < lv ? '#ffe070' : '#304070');
@@ -1771,16 +1799,16 @@ function drawOver() {
   rect(0, 0, VIEW_W, VIEW_H, win ? '#06223a' : '#220608', 0.75);
   const c = VIEW_W / 2;
   const more = camp && win && camp.i < CAMPAIGN.length - 1;
-  drawText(more ? 'ORGAN SAVED!' : win ? 'HOST SAVED!' : 'INFECTION WINS', c, 40, win ? '#7fe8ff' : '#9ae05a', 4, 'c');
-  drawText(G.reason, c, 70, '#fff', 1, 'c');
-  if (camp) drawText(more ? 'NEXT: ' + LEVELS[CAMPAIGN[camp.i + 1]].name + '. UPGRADES CARRY OVER' : win ? 'CAMPAIGN COMPLETE!' : 'CAMPAIGN ' + (camp.i + 1) + '/' + CAMPAIGN.length + ': ' + lvl().name, c, 80, win ? '#ffe070' : '#ffd88a', 1, 'c');
+  drawText(more ? 'ORGAN SAVED!' : win ? 'HOST SAVED!' : 'INFECTION WINS', c, 34, win ? '#7fe8ff' : '#9ae05a', 3, 'c');
+  drawText(G.reason, c, 62, '#fff', 1, 'c');
+  if (camp) drawText(more ? 'NEXT: ' + LEVELS[CAMPAIGN[camp.i + 1]].name + '. UPGRADES CARRY OVER' : win ? 'CAMPAIGN COMPLETE!' : 'CAMPAIGN ' + (camp.i + 1) + '/' + CAMPAIGN.length + ': ' + lvl().name, c, 72, win ? '#ffe070' : '#ffd88a', 1, 'c');
   const saved = organs.filter(o => o.team === 'i').length;
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
-    .forEach(([k, v], i) => { const y0 = VIEW_H < 220 ? 92 : 98; drawText(k, c - 10, y0 + i * 11, '#bfe8ff', 1, 'r'); drawText(v, c + 10, y0 + i * 11, '#fff'); });
+    .forEach(([k, v], i) => { const y0 = VIEW_H < 220 ? 86 : 94; drawText(k, c - 10, y0 + i * 10, '#bfe8ff', 1, 'r'); drawText(v, c + 10, y0 + i * 10, '#fff'); });
   if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, VIEW_H - 36, '#fff', isGuest() ? 1 : 2, 'c');
   const b = menuBtn(), hov = !touchUI && inRect(b, mouse.sx, mouse.sy);
   rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, hov ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, hov ? '#243c78' : '#12204a');
-  drawText(touchUI ? 'MENU' : 'MENU [M]', c, b.y + 5, '#fff', 1, 'c');
+  drawText(touchUI ? 'MENU' : 'MENU [M]', c, b.y + 4, '#fff', 1, 'c');
 }
 
 // ---------------------------------------------------------------- online
@@ -1869,7 +1897,7 @@ function hostSend(dt) {
   net.snapT = 0.05;   // 20 snapshots / second
   relay({ k: 'snap', lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
-    pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)]]),
+    pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)], r2(Math.max(0, p.pokeCd))]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
     un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0]),
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
@@ -1895,7 +1923,7 @@ function applySnap(d) {
     p.tx = a[0]; p.ty = a[1]; p.infection = a[2]; p.down = !!a[3]; p.reviveT = a[4]; p.flash = a[6] ? 0.1 : -1;
     p.autoFire = !!a[10]; p.mass = a[11]; p.splitting = a[12]; p.splitBase = a[13]; p.stuckT = a[14] ? 1 : 0;
     p.fx = { speed: a[15][0], slow: a[15][1], shield: a[15][2], poke: a[15][3], bloat: a[15][4] };
-    p.tailG = a[9] ? { x: a[9][0], y: a[9][1], t: a[9][2] } : null;
+    p.tailG = a[9] ? { x: a[9][0], y: a[9][1], t: a[9][2] } : null; p.pokeCd = a[16];
     if (i !== me) { p.aim = a[5]; p.vx = a[7]; p.vy = a[8]; }
     else { const ex = a[0] - p.x, ey = a[1] - p.y; if (Math.hypot(ex, ey) > 50 || p.down) { p.x = a[0]; p.y = a[1]; } else { p.x += ex * 0.15; p.y += ey * 0.15; } }
   });
@@ -1945,6 +1973,7 @@ function guestTick(dt) {
     } else { p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k; }
     p.bob += Math.hypot(p.vx, p.vy) * dt * 0.25; p.orbitA += 3 * dt; p.flash -= dt;
     if (p.tailG) p.tailG.t += dt;
+    if (p.pokeCd > 0) p.pokeCd -= dt;
   }
   for (const u of G.units) { u.x += (u.tx - u.x) * k; u.y += (u.ty - u.y) * k; u.flash -= dt; if (u.tailG) u.tailG.t += dt; }
   for (const p of G.projs) { p.x += p.vx * dt; p.y += p.vy * dt; }

@@ -81,11 +81,11 @@ Win rates with the shipped tuning (60 games each):
 | | novice | decent | perfect |
 |---|---|---|---|
 | Brain (solo, = campaign level 1) | 3% | 28% | 97% |
-| Lungs (solo) | 27% | 57% | 78% |
+| Lungs (solo) | 27% | 55% | 77% |
 | Heart (solo) | 0% | 30% | 100% |
-| Classic | 25% | 50% | 82% |
+| Classic | 10% | 45% | 87% |
 | Campaign: Brain | 3% | 28% | 97% |
-| Campaign: Lungs (with carried upgrades) | 22% | 50% | 50% |
+| Campaign: Lungs (with carried upgrades) | 22% | 30% | 43% |
 | Campaign: Heart (with carried upgrades) | 7% | 28% | 90% |
 
 The goal is decent ~30% and perfect ~100%. Brain and Heart reach it; Lungs does not: its outcome depends more on how fast
