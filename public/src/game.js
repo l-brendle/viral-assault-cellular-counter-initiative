@@ -12,6 +12,7 @@ const TYPES = {
   slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
   ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
   spark: { r: 4, hp: 8, speed: 52, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#7aa8ff' },   // brain level: spawned by sick synapses
+  manflu: { r: 22, hp: 500, speed: 24, dmg: 10, arc: 0.4, xp: 14, ally: 40, col: '#a8c83a' },   // brain level boss: harmless in the end, if you let it
   saboteur: { r: 5, hp: 30, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -27,7 +28,7 @@ const LEVELS = {
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
     tune: { solo: { spawn: 0.56, swarm: 1.8, dmg: 1.8, hp: 1.34, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
-    ph: [120, 240],
+    ph: [120, 240], boss: 240,
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
@@ -203,6 +204,7 @@ canvas.addEventListener('pointerdown', e => {
     if (m) { if (fingers && fsAvail() && m < 5) requestFs('enter', e); titleChoice(m); }   // starting a game on a phone goes fullscreen
   }
   else if (state === 'lobby') lobbyTap();
+  else if (state === 'powers') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
@@ -247,6 +249,7 @@ function titleChoice(m) {
   else if (m === 2) startGame(true);
   else if (m === 3) { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
   else if (m === 4) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
+  else if (m === 6) state = 'powers';
   else if (m === 5) { lvSel = LEVEL_SEL[(LEVEL_SEL.indexOf(lvSel) + 1) % LEVEL_SEL.length]; lvKey = lvSel === 'campaign' ? CAMPAIGN[0] : lvSel; camp = null; newGame(false); }   // cycle campaign / levels (the title shows it behind the menu)
 }
 function pickUpgrade(i) { if (isGuest()) relay({ k: 'pick', i }); else chooseUpgrade(i); }
@@ -258,7 +261,8 @@ function onKey(k) {
     else if (k === 'enter') lobbyPress('GO');
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
-  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); }
+  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); else if (k === 'p') titleChoice(6); }
+  else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
   else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) overContinue();
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
@@ -306,6 +310,12 @@ function readInput(p) {
 let state = 'title';
 let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 
+// cross-level progression: beating a level unlocks a power that can then show up in the level-up choices (kept in localStorage)
+const UNLOCKS = { brain: 'plight', lung: 'pslime', heart: 'pray' };
+const loadUnlocks = () => { try { return new Set(JSON.parse(localStorage.getItem('vaccine.unlocks') || '[]')); } catch (e) { return new Set(); } };
+let unlocked = loadUnlocks();
+let hasPet = (() => { try { return localStorage.getItem('vaccine.pet') === '1'; } catch (e) { return false; } })();   // the Man Flu pet follows you through every level once earned
+function saveUnlocks() { try { localStorage.setItem('vaccine.unlocks', JSON.stringify([...unlocked])); } catch (e) { /* private mode */ } }
 const UPGRADES = [
   { id: 'aura',   name: 'ANTISEPTIC AURA',  desc: ['HURTS VIRUSES', 'AROUND YOU'] },
   { id: 'orbit',  name: 'PLATELET ORBIT',   desc: ['PLATELETS CIRCLE', 'YOU AND SMASH'] },
@@ -318,6 +328,9 @@ const UPGRADES = [
   { id: 'magnet', name: 'CYTOKINE PULL',    desc: ['PULL XP FROM', 'FURTHER AWAY'] },
   { id: 'regen',  name: 'IMMUNE MEMORY',    desc: ['SHAKE OFF', 'INFECTION FASTER'] },
   { id: 'reach',  name: 'LONG TAIL',        desc: ['POKE WEAK SPOTS', 'FROM FARTHER OUT'] },
+  { id: 'plight', name: 'STATIC SHOCK',     desc: ['LIGHTNING ZAPS', 'NEARBY VIRUSES'], unlock: 'brain', info: ['LIGHTNING STRIKES VIRUSES NEAR YOU', 'UPGRADES: MORE BOLTS, MORE DAMAGE'] },
+  { id: 'pslime', name: 'PHAGE SLIME',      desc: ['SLIME STICKS', 'NEARBY VIRUSES'], unlock: 'lung', info: ['SPITS SLIME THAT FREEZES VIRUSES', 'UPGRADES: MORE GLOBS, BIGGER PUDDLES'] },
+  { id: 'pray',   name: 'FEVER BEAM',       desc: ['HORIZONTAL RAY,', 'LONG RANGE'], unlock: 'heart', info: ['A LONG HORIZONTAL RAY THROUGH VIRUSES', 'UPGRADES: LONGER AND STRONGER'] },
 ];
 const MAX_UP = 5;
 const PCOL = ['#8fd0ff', '#ffc070'];   // per-player UI colours
@@ -327,11 +340,12 @@ const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, 
 
 function newGame(co) {
   coop = !!co;
-  G = { fix: [], bolts: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
+  G = { fix: [], bolts: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], pb: [], pr: [], pg: [], ps: [], fp: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
         spawnT: 2, nextSwarm: 40, msg: '', msgT: 0, shake: 0, overT: 0, result: '', reason: '' };
   // team-wide progression: one level, one XP bar, one set of upgrades shared by everybody
   S = { level: 1, xp: 0, next: 6, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
   players = coop ? [mkPlayer(0, CFG.W / 2 - 16, 600), mkPlayer(1, CFG.W / 2 + 16, 600)] : [mkPlayer(0, CFG.W / 2, 600)];
+  G.pet = hasPet ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null;
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
@@ -377,7 +391,7 @@ function addUnit(team, type, x, y) {
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
     weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(6, 18) : rand(1.5, 5), tail: null,
-    tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0 };
+    tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0, boss: type === 'manflu' };
   G.units.push(u);
   return u;
 }
@@ -413,10 +427,11 @@ function kill(u) {
   u.dead = true;
   if (u.team === 'v') {
     G.kills++; dropGem(u.x, u.y, TYPES[u.type].xp);
+    if (u.boss) { for (let i = 0; i < 8; i++) dropGem(u.x + rand(-20, 20), u.y + rand(-20, 20), 3); G.shake = 6; say('MAN FLU DEFEATED!'); }
     burst(u.x, u.y, TYPES[u.type].col, 8); sfx('kill', 180, 0.08, 'square', 0.02, -80);
   } else burst(u.x, u.y, '#8fd0ff', 8);
 }
-function damageUnit(u, d) { u.hp -= d; u.flash = 0.1; if (u.hp <= 0) kill(u); }
+function damageUnit(u, d) { if (u.morph) return; u.hp -= d; u.flash = 0.1; if (u.hp <= 0) kill(u); }
 
 function convert(u) {
   if (u.team === 'v') {
@@ -450,7 +465,7 @@ function checkLevel() {
   S.res = Math.min(0.55, 1 - Math.pow(0.94, S.level - 1));   // capped: you can never become immune
   S.scale = Math.min(2.4, 1 + 0.08 * (S.level - 1));
   for (const p of players) { p.infection = Math.max(0, p.infection - 8); burst(p.x, p.y, '#8fd0ff', 24, 90); }
-  const pool = UPGRADES.filter(u => (S.up[u.id] || 0) < (u.max || MAX_UP) && (!u.needs || S[u.needs]));
+  const pool = UPGRADES.filter(u => (S.up[u.id] || 0) < (u.max || MAX_UP) && (!u.needs || S[u.needs]) && (!u.unlock || unlocked.has(u.id)));
   choices = pool.sort(() => Math.random() - 0.5).slice(0, 3);
   const first = pool.find(u => u.id === 'shoot');   // the very first level-up always offers the shooting unlock
   if (S.level === 2 && first && !choices.includes(first)) choices[0] = first;
@@ -482,6 +497,8 @@ function endGame(win, reason) {
   if (state === 'over') return;
   state = 'over'; G.overT = 0; G.result = win ? 'win' : 'lose'; G.reason = reason;
   sfx('end', win ? 500 : 200, 0.6, 'square', 0.05, win ? 600 : -120);
+  const pw = win && !isGuest() && UNLOCKS[lvKey];
+  if (pw && !unlocked.has(pw)) { unlocked.add(pw); saveUnlocks(); G.newPower = pw; }
 }
 
 // ---------------------------------------------------------------- update
@@ -514,6 +531,7 @@ function nearestFix(u, ok, rad) {
   return best;
 }
 function chooseTarget(u) {
+  if (u.boss) return nearestPlayer(u);   // Man Flu only wants you
   if (u.team === 'v') {
     if (u.type === 'saboteur') { const f = nearestFix(u, canBreak, 1e9); if (f) return f; }
     const np = nearestPlayer(u);
@@ -551,7 +569,7 @@ const canBreak = f => f.st < 2 && f.cd <= 0;
 const spotOf = t => ({ x: t.x + Math.cos(t.weakA) * t.r, y: t.y + Math.sin(t.weakA) * t.r });
 function pokeables() {
   const out = [];
-  for (const u of G.units) if (u.team === 'v' && !u.dead && (u.cvT || 0) <= 0) out.push(u);
+  for (const u of G.units) if (u.team === 'v' && !u.dead && !u.boss && (u.cvT || 0) <= 0) out.push(u);
   for (const o of organs) if (o.team === 'v' && (o.cvT || 0) <= 0) out.push(o);
   for (const f of G.fix) if (canRepair(f)) out.push(f);
   return out;
@@ -656,6 +674,7 @@ function slimeStick(e, dt, isPlayer) {
     if (isPlayer) { tip(e.x, e.y - 16, 'STUCK!', '#9ae05a'); sfx('stuck', 160, 0.15, 'sawtooth', 0.03, -60); }
     return;
   }
+  if (!isPlayer && e.team === 'v') for (const sl of G.ps) if (Math.hypot(e.x - sl.x, e.y - sl.y) < sl.r * 1.1 + r * 0.6) { e.stuckT = 3; burst(e.x, e.y, PCOL[sl.pi || 0], 6, 40); return; }   // the players' own slime only catches viruses
 }
 
 const PILLS = [
@@ -862,7 +881,7 @@ function brainStep(dt, alive, phase) {
 function lungStep(dt, alive, phase) {
   const push = 55 * breathY();
   for (const p of alive) if (p.stuckT <= 0) p.y = clamp(p.y + push * dt, 10, CFG.H - 10);
-  for (const u of G.units) if (u.stuckT <= 0) u.y = clamp(u.y + push * 0.7 * dt, 6, CFG.H - 6);
+  for (const u of G.units) if (u.stuckT <= 0 && !u.hack) u.y = clamp(u.y + push * 0.7 * dt, 6, CFG.H - 6);
   // sick sacs behave like the infected lungs of the classic level: they lob slime and breed little slime enemies
   for (const f of G.fix) {
     if (f.st === 0) { f.spawnMax = 0; continue; }
@@ -948,7 +967,7 @@ function lashTarget(u, organsOnly) {
     const cx = Math.floor(u.x / CFG.CELL), cy = Math.floor(u.y / CFG.CELL);
     for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
       const cell = grid[(cy + oy) * gw + cx + ox];
-      if (cell) for (const n of cell) if (n.team === foe && !n.dead && n.cvT <= 0) test(n);
+      if (cell) for (const n of cell) if (n.team === foe && !n.dead && n.cvT <= 0 && !n.boss) test(n);
     }
   }
   for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);
@@ -997,6 +1016,8 @@ function update(dt) {
     slimeStick(p, dt, true);
     if (p.hitT > 2) p.infection = Math.max(0, p.infection - S.regen * 1.2 * oxy() * dt);   // you only shake it off after 2s without a hit
     for (const o of organs) if (o.team === 'i' && Math.hypot(p.x - o.x, p.y - o.y) < 60) p.infection = Math.max(0, p.infection - 2.5 * dt);
+    if (p.infection >= 100 && G.units.some(u => u.morph && !u.dead)) p.infection = 99;   // nothing can finish you off while Man Flu changes
+    if (p.infection >= 100 && fluCatch(p)) p.infection = 0;   // the plot twist: Man Flu was only ever looking for a friend
     if (p.infection >= 100) {
       p.infection = 100; p.down = true; p.reviveT = 0; p.vx = p.vy = 0;
       burst(p.x, p.y, '#9ae05a', 20, 80); G.shake = 4; sfx('inf', 200, 0.4, 'sawtooth', 0.04, -120);
@@ -1069,6 +1090,7 @@ function update(dt) {
 
   hazardsStep(dt, alive);
   fixStep(dt, alive);
+  bossStep(dt, alive);
 
   // ---- units: AI, movement
   buildGrid();
@@ -1086,14 +1108,14 @@ function update(dt) {
       const nx = dx - dy * w, ny = dy + dx * w; dx = nx; dy = ny;
     }
     u.convCd -= dt;
-    if (!u.tail && (u.convCd <= 0 || u.team === 'v')) {
+    if (!u.tail && !u.boss && (u.convCd <= 0 || u.team === 'v')) {
       const t = lashTarget(u, u.convCd > 0);
       if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = u.team === 'v' ? rand(18, 26) : rand(5, 8); }   // viruses wait much longer than allies between lashes
     }
     if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
     u.hack = null;   // saboteurs stop next to a fixable and hack it: they stay linked, and it only flips if they survive
     if (u.type === 'saboteur' && u.team === 'v' && u.tgt && u.tgt.fix && canBreak(u.tgt) && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < HACK_R) { u.hack = u.tgt; u.tgt.hackN++; dx = 0; dy = 0; }
-    if (u.stuckT > 0) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime
+    if (u.stuckT > 0 || u.morph) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime (or busy transforming)
     const kk = Math.min(1, 6 * dt);
     u.vx += (dx * u.speed - u.vx) * kk; u.vy += (dy * u.speed - u.vy) * kk;
     u.x = clamp(u.x + u.vx * dt, 6, CFG.W - 6); u.y = clamp(u.y + u.vy * dt, 6, CFG.H - 6);
@@ -1136,8 +1158,8 @@ function update(dt) {
       if (dp >= u.r + ppr) continue;
       const push = (u.r + ppr - dp) * 0.5 / dp;
       u.x -= dpx * push; u.y -= dpy * push;
-      if (u.team === 'v' && u.atkCd <= 0) {
-        u.atkCd = 1.1;
+      if (u.team === 'v' && u.atkCd <= 0 && !u.morph) {
+        u.atkCd = 1.1; if (u.boss) p.fluT = G.t;
         p.infection += u.dmg * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1);   p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2);   // viruses hit harder as the infection matures
         p.vx += dpx / dp * 40; p.vy += dpy / dp * 40;
         sfx('hurt', 150, 0.1, 'sawtooth', 0.03, -60);
@@ -1177,6 +1199,7 @@ function update(dt) {
   G.projs = G.projs.filter(p => !p.dead);
 
   // ---- auto weapons (per player, shared upgrade levels)
+  powersStep(dt, alive);
   const aLv = S.up.aura || 0, oLv = S.up.orbit || 0;
   for (const p of alive) {
     if (aLv) {
@@ -1275,6 +1298,195 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
   if (tt) { lashTo(bx, by, tt, col, '#12204a', 0); return; }
   const a = p.aim + Math.PI + Math.sin(G.t * 6 + p.idx) * 0.5, len = 9 * sc;
   drawLash(bx, by, bx + Math.cos(a) * len, by + Math.sin(a) * len, 2, col, '#12204a', null, p.idx);
+}
+
+// ---------------------------------------------------------------- Man Flu (brain boss) and the pet it becomes
+// A big scary boss that you can shoot down like anything else. But when it makes your infection reach 100% nothing bad happens:
+// it blinks, shrinks and turns into a small pet that follows you through all later levels.
+const MORPH_T = 3;
+function fluCatch(p) {
+  const fl = G.units.find(u => u.boss && !u.dead && !u.morph);
+  if (!fl || G.t - (p.fluT == null ? -9 : p.fluT) > 3) return false;
+  fl.morph = { t: 0 }; fl.hp = fl.maxHp; G.fp = []; G.shake = Math.max(G.shake, 3);
+  say('MAN FLU IS ... CHANGING?'); sfx('charge', 200, MORPH_T, 'sine', 0.03, 300);
+  return true;
+}
+function bossStep(dt, alive) {
+  const bt = lvl().boss;
+  if (bt && !G.bossSpawned && G.t >= bt) {
+    G.bossSpawned = true;
+    const c = alive[Math.floor(Math.random() * alive.length)], a = rand(0, 6.283);
+    addUnit('v', 'manflu', clamp(c.x + Math.cos(a) * 330, 30, CFG.W - 30), clamp(c.y + Math.sin(a) * 330, 30, CFG.H - 30));
+    say('BOSS: MAN FLU!'); G.shake = 5; sfx('charge', 90, 1.2, 'sawtooth', 0.05, 120);
+  }
+  for (const u of G.units) {   // the boss sneezes snot at the nearest player in little fans; the snot hits nothing else
+    if (!u.boss || u.dead || u.morph || !alive.length) continue;
+    u.shotT = (u.shotT == null ? 2 : u.shotT) - dt;
+    if (u.shotT > 0) continue;
+    const t = nearestPlayer(u);
+    if (!t || dist(u, t) > 380) { u.shotT = 0.5; continue; }
+    u.shotT = 1.7; const base = Math.atan2(t.y - u.y, t.x - u.x);
+    for (let i = -1; i <= 1 && G.fp.length < 30; i++) { const a = base + i * 0.22; G.fp.push({ id: G.fpId = (G.fpId || 0) + 1, x: u.x + Math.cos(a) * u.r, y: u.y + Math.sin(a) * u.r, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, life: 3.2 }); }
+    sfx('spit', 180, 0.15, 'sawtooth', 0.03, -80); burst(u.x, u.y, '#c8f060', 6, 40);
+  }
+  for (const b of G.fp) {
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    for (const p of alive) if (Math.hypot(b.x - p.x, b.y - p.y) < 5 * S.scale + 3) {
+      b.life = 0; burst(b.x, b.y, '#c8f060', 6, 40);
+      p.infection += 4 * ease('dmg') * (1 + G.t / 200) * (1 - S.res) * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.15; p.fluT = G.t;
+      sfx('hurt', 150, 0.08, 'sawtooth', 0.025, -60); break;
+    }
+    if (b.x < 0 || b.y < 0 || b.x > CFG.W || b.y > CFG.H) b.life = 0;
+  }
+  G.fp = G.fp.filter(b => b.life > 0);
+  for (const u of G.units) {
+    if (!u.morph || u.dead) continue;
+    u.morph.t += dt; u.atkCd = 1;
+    if (u.morph.t >= MORPH_T) {
+      u.dead = true; burst(u.x, u.y, '#ff9ac8', 20, 70); sfx('conv', 600, 0.4, 'sine', 0.05, 500);
+      say(hasPet ? 'MAN FLU IS YOUR FRIEND AGAIN!' : 'MAN FLU IS NOW YOUR PET! IT FOLLOWS YOU FROM NOW ON'); G.msgT = 6;
+      hasPet = true; try { localStorage.setItem('vaccine.pet', '1'); } catch (e) { /* private mode */ }
+      G.pet = { x: u.x, y: u.y, vx: 0, vy: 0 };
+    }
+  }
+  const pt = G.pet;
+  if (pt && alive.length) {   // the pet trots after the nearest player and stays a little behind
+    let t = alive[0]; for (const p of alive) if (dist(p, pt) < dist(t, pt)) t = p;
+    const d = dist(t, pt), a = Math.atan2(t.y - pt.y, t.x - pt.x), sp = d > 26 ? Math.min(140, 30 + (d - 26) * 3) : 0, k = Math.min(1, 6 * dt);
+    pt.vx += (Math.cos(a) * sp - pt.vx) * k; pt.vy += (Math.sin(a) * sp - pt.vy) * k;
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+    pt.heartT = (pt.heartT == null ? rand(3, 8) : pt.heartT) - dt;
+    if (pt.heartT <= 0) { pt.heartT = rand(5, 10); burst(pt.x, pt.y - 6, '#ff9ac8', 3, 20); }
+  }
+}
+
+// ---------------------------------------------------------------- level powers (unlocked by beating a level)
+// Static shock (brain): short lightning at nearby viruses. Phage slime (lung): globs of the player's colour that freeze viruses only.
+// Fever beam (heart): one long horizontal ray. Upgrading raises the count / area / range and the damage.
+const PBOLT = { warn: 0.22, fire: 0.16, reach: 130 }, PRAY = { warn: 0.3, fire: 0.4 };
+function powersStep(dt, alive) {
+  const lL = S.up.plight || 0, sL = S.up.pslime || 0, rL = S.up.pray || 0;
+  const foes = lL || sL || rL ? G.units.filter(u => u.team === 'v' && !u.dead) : [];
+  for (const p of alive) {
+    if (lL) {
+      p.zapT = (p.zapT == null ? 1 : p.zapT) - dt;
+      if (p.zapT <= 0) {
+        const near = foes.filter(u => dist(u, p) < PBOLT.reach).sort((a, b) => dist(a, p) - dist(b, p));
+        if (!near.length) p.zapT = 0.3;
+        else {
+          p.zapT = 2.4 - 0.15 * lL;
+          for (let i = 0; i < lL && G.pb.length < 24; i++) {
+            const t = near[i % near.length], a = Math.atan2(t.y - p.y, t.x - p.x) + (i >= near.length ? rand(-0.5, 0.5) : 0);
+            G.pb.push({ x: p.x, y: p.y, a, len: PBOLT.reach, t: -i * 0.07, pi: p.idx, dmg: 14 + 5 * lL, seed: Math.floor(Math.random() * 1000), fired: false, p });
+          }
+        }
+      }
+    }
+    if (sL) {
+      p.slT = (p.slT == null ? 2 : p.slT) - dt;
+      if (p.slT <= 0) {
+        const pool = foes.filter(u => dist(u, p) < 260).sort(() => Math.random() - 0.5);
+        if (!pool.length) p.slT = 0.5;
+        else {
+          p.slT = 6.5 - 0.5 * sL;
+          for (let i = 0; i < sL && G.pg.length < 12; i++) {
+            const t = pool[i % pool.length];
+            G.pg.push({ sx: p.x, sy: p.y, tx: clamp(t.x + rand(-14, 14), 20, CFG.W - 20), ty: clamp(t.y + rand(-14, 14), 20, CFG.H - 20), t: -i * 0.12, dur: 0.8, pi: p.idx, r: (12 + 3 * sL) * rand(0.9, 1.1) });
+          }
+          sfx('spit', 260, 0.15, 'sawtooth', 0.025, -100);
+        }
+      }
+    }
+    if (rL) {
+      p.rayT = (p.rayT == null ? 2 : p.rayT) - dt;
+      if (p.rayT <= 0) {
+        const len = 170 + 45 * rL;
+        let side = 0, best = 0, nd = 1e9, nside = 0;
+        for (const sd of [-1, 1]) {
+          let c = 0;
+          for (const u of foes) { const dx = (u.x - p.x) * sd; if (dx > 0 && dx < len && Math.abs(u.y - p.y) < 14 + u.r) c++; }
+          if (c > best) { best = c; side = sd; }
+        }
+        for (const u of foes) { const d = dist(u, p); if (d < nd) { nd = d; nside = u.x >= p.x ? 1 : -1; } }
+        if (!side && nd < len) side = nside;   // nothing in a lane: still fire toward the nearest virus
+        if (!side) p.rayT = 0.4;
+        else { p.rayT = 4.6 - 0.35 * rL; G.pr.push({ x: p.x, y: p.y, s: side, len, t: 0, pi: p.idx, dps: 70 + 20 * rL, fired: false, p }); }
+      }
+    }
+  }
+  for (const b of G.pb) {
+    b.t += dt; if (b.p && !b.fired) { b.x = b.p.x; b.y = b.p.y; }
+    if (b.fired || b.t < PBOLT.warn) continue;
+    b.fired = true; sfx('bolt', 700, 0.1, 'sawtooth', 0.025, -400);
+    const ca = Math.cos(b.a), sa = Math.sin(b.a);
+    for (const u of foes) {
+      if (u.dead) continue;
+      const dx = u.x - b.x, dy = u.y - b.y, along = dx * ca + dy * sa;
+      if (along >= 0 && along <= b.len && Math.abs(-dx * sa + dy * ca) < 7 + u.r) { damageUnit(u, b.dmg); burst(u.x, u.y, '#bfe0ff', 5, 50); }
+    }
+    for (let k = 0; k < 4; k++) { const d = rand(6, b.len); G.parts.push({ x: b.x + ca * d, y: b.y + sa * d, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.3, max: 0.3, col: Math.random() < 0.5 ? '#a0c8ff' : '#e8f4ff', sz: 2 }); }
+  }
+  G.pb = G.pb.filter(b => b.t < PBOLT.warn + PBOLT.fire);
+  for (const b of G.pr) {
+    b.t += dt; if (b.p && !b.fired) { b.x = b.p.x; b.y = b.p.y; }
+    if (b.t < PRAY.warn) continue;
+    if (!b.fired) { b.fired = true; sfx('ray', 140, 0.35, 'sawtooth', 0.04, 160); }
+    for (const u of foes) if (!u.dead && (u.x - b.x) * b.s > 0 && (u.x - b.x) * b.s < b.len && Math.abs(u.y - b.y) < 6 + u.r) damageUnit(u, b.dps * dt);
+    if (Math.random() < 0.7) G.parts.push({ x: b.x + b.s * rand(10, b.len), y: b.y + rand(-4, 4), vx: rand(-20, 20), vy: rand(-30, -5), life: 0.4, max: 0.4, col: Math.random() < 0.5 ? PCOL[b.pi || 0] : '#fff', sz: 2 });
+  }
+  G.pr = G.pr.filter(b => b.t < PRAY.warn + PRAY.fire);
+  for (const g of G.pg) {
+    g.t += dt;
+    if (g.t >= g.dur) { g.dead = true; G.ps.push({ x: g.tx, y: g.ty, r: g.r, life: 9, pi: g.pi }); burst(g.tx, g.ty, PCOL[g.pi || 0], 10, 50); sfx('splat', 150, 0.1, 'square', 0.025, -40); }
+  }
+  G.pg = G.pg.filter(g => !g.dead);
+  for (const sl of G.ps) sl.life -= dt;
+  G.ps = G.ps.filter(sl => sl.life > 0);
+  if (G.ps.length > 30) G.ps.splice(0, G.ps.length - 30);
+}
+function drawPowers() {
+  const ox = shx - cam.x, oy = shy - cam.y;
+  const ell = (x, y, rx, ry) => { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.283); };
+  for (const g of G.ps) {   // puddles in the player's colour
+    const col = PCOL[g.pi || 0], a = Math.min(1, g.life / 2);
+    ctx.fillStyle = col; ctx.globalAlpha = 0.4 * a; ell(g.x + ox, g.y + oy, g.r * 1.3, g.r * 0.95); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.5 * a; ell(g.x + ox, g.y + oy, g.r * 1.3, g.r * 0.95); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.5 * a;
+    for (let i = 0; i < 3; i++) { const t = i * 2.1 + g.x; ctx.fillRect(Math.round(g.x + ox + Math.cos(t) * g.r * 0.7), Math.round(g.y + oy + Math.sin(t) * g.r * 0.5 - (G.t * 4 + i) % 2), 1, 1); }
+    ctx.globalAlpha = 1;
+  }
+  for (const g of G.pg) {
+    if (g.t < 0) continue;
+    const col = PCOL[g.pi || 0], k = Math.min(1, g.t / g.dur), gx = g.sx + (g.tx - g.sx) * k, gy = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 30;
+    ctx.setLineDash([3, 2]); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.4 + 0.5 * k; ell(g.tx + ox, g.ty + oy, g.r * 1.3, g.r * 0.95); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    rect(gx - 3 + ox, gy - h - 3 + oy, 6, 6, '#000', 0.5); rect(gx - 2 + ox, gy - h - 2 + oy, 4, 4, col); rect(gx - 1 + ox, gy - h - 2 + oy, 1, 1, '#fff');
+  }
+  for (const b of G.pr) {   // the fever beam: a thin dashed lane, then the burning ray
+    const col = PCOL[b.pi || 0], firing = b.t >= PRAY.warn, x0 = b.s > 0 ? b.x + 6 + ox : b.x - 6 - b.len + ox, y0 = b.y + oy;
+    if (!firing) {
+      const k = b.t / PRAY.warn, pu = 0.5 + 0.5 * Math.sin(b.t * 30);
+      ctx.fillStyle = col; ctx.globalAlpha = 0.1 + 0.25 * k * pu; ctx.fillRect(x0, y0 - 5, b.len, 10);
+      ctx.globalAlpha = 0.5 + 0.5 * k; for (let d = 0; d < b.len; d += 10) ctx.fillRect(x0 + d, y0 - 1, 5, 1);
+    } else {
+      const f = 0.8 + 0.2 * Math.sin(b.t * 70), fade = Math.min(1, (PRAY.warn + PRAY.fire - b.t) / 0.15);
+      ctx.fillStyle = col; ctx.globalAlpha = 0.5 * f * fade; ctx.fillRect(x0, y0 - 9, b.len, 18);
+      ctx.globalAlpha = 0.95 * fade; ctx.fillRect(x0, y0 - 5, b.len, 10);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x0, y0 - 2, b.len, 4);
+    }
+    ctx.globalAlpha = 1;
+  }
+  for (const b of G.pb) {
+    if (b.t < 0) continue;
+    const col = PCOL[b.pi || 0], ca = Math.cos(b.a), sa = Math.sin(b.a), firing = b.t >= PBOLT.warn, n = Math.max(3, Math.floor(b.len / 9)), pts = [];
+    for (let i = 0; i <= n; i++) {
+      const k = i / n, h = Math.sin(b.seed * 12.9898 + i * 78.233) * 43758.5453, off = (h - Math.floor(h) - 0.5) * 12 * Math.sin(k * Math.PI) * (firing ? 1 : 0);
+      pts.push([b.x + ca * b.len * k - sa * off + ox, b.y + sa * b.len * k + ca * off + oy]);
+    }
+    const path = () => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
+    if (!firing) { ctx.setLineDash([3, 3]); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.4 + 0.5 * b.t / PBOLT.warn; path(); ctx.stroke(); ctx.setLineDash([]); }
+    else { ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.globalAlpha = 0.5; path(); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.globalAlpha = 1; path(); ctx.stroke(); ctx.lineCap = 'butt'; }
+    ctx.globalAlpha = 1;
+  }
 }
 
 // slime in flight: a pulsing landing zone (drawn above units and allies so it stays readable in a crowd) and the glob itself
@@ -1527,7 +1739,12 @@ function render() {
   for (const u of G.units) {
     const inf = u.team === 'v';
     let img = inf ? SPR.virus[u.type] : SPR.ally;
-    const grow = clamp((G.t - u.born) / 0.35, 0.35, 1), sz = (inf ? img.width : TYPES[u.type].ally) * grow;
+    const grow = clamp((G.t - u.born) / 0.35, 0.35, 1); let sz = (inf ? img.width : TYPES[u.type].ally) * grow;
+    const mk = u.morph ? u.morph.t / MORPH_T : u.morphK > 0 ? u.morphK : 0;
+    if (u.boss && mk > 0) {   // transforming: shrinks into the pet and blinks all the way
+      const bw = img.width; img = mk > 0.5 ? SPR.pet : img; sz = bw + (SPR.pet.width - bw) * mk;
+      if (Math.floor(G.t * 14) % 2) img = tinted(img, '#ffffff');
+    }
     if (u.flash > 0) img = tinted(img, '#ffffff');
     rect(u.x - u.r * 0.8 - cam.x + shx, u.y + u.r - 1 - cam.y + shy, Math.round(u.r * 1.6), 2, '#000', 0.3);
     if (!tailOf(u)) {   // idle tail wags behind the body, beside the weak spot
@@ -1537,6 +1754,7 @@ function render() {
     }
     sprite(img, u.x, u.y, sz, sz);
     if (u.stuckT > 0) { ctx.globalAlpha = 0.55; sprite(tinted(inf ? SPR.virus[u.type] : SPR.ally, '#7fe04a'), u.x, u.y, sz, sz); ctx.globalAlpha = 1; }
+    if (u.boss) continue;
     weakGlow(u.x, u.y, u.r, u.weakA, '#fff6a0', inf, inf && nearSpot(u));
     if (inf && nearSpot(u)) bodyRing(u.x, u.y, u.r + 3);   // the whole virus pulses when you can poke it
   }
@@ -1546,6 +1764,17 @@ function render() {
     const sp = spotOf(t), dx = sp.x - p.x, dy = sp.y - p.y, l = Math.hypot(dx, dy) || 1;
     for (let d = 10; d < l - 4; d += 4) rect(p.x + dx / l * d - cam.x + shx, p.y + dy / l * d - cam.y + shy, 1, 1, '#fff', 0.6);
     drawText(touchUI ? 'TAP' : 'CLICK', sp.x - cam.x + shx, sp.y - 20 - cam.y + shy, '#ffe070', 1, 'c');
+  }
+  for (const u of G.units) {   // warning: dotted lanes toward the target just before the boss sneezes
+    if (!u.boss || u.dead || u.morph || u.morphK > 0 || !(u.shotT > 0 && u.shotT < 0.55)) continue;
+    const t = nearestPlayer(u);
+    if (!t || dist(u, t) > 380) continue;
+    const base = Math.atan2(t.y - u.y, t.x - u.x), k = 1 - u.shotT / 0.55;
+    for (let i = -1; i <= 1; i++) for (let d = u.r + 6; d < u.r + 70; d += 8) rect(u.x + Math.cos(base + i * 0.22) * d - cam.x + shx, u.y + Math.sin(base + i * 0.22) * d - cam.y + shy, 2, 2, '#c8f060', 0.25 + 0.6 * k);
+  }
+  for (const b of G.fp) {   // snot balls
+    const x = b.x - cam.x + shx, y = b.y - cam.y + shy, pu = Math.floor(G.t * 10) % 2;
+    rect(x - 3, y - 3, 6, 6, '#26340a'); rect(x - 2, y - 2, 4, 4, pu ? '#c8f060' : '#a8c83a'); rect(x - 1, y - 2, 1, 1, '#fff');
   }
   for (const u of G.units) {   // lashes on top of every body so the tip is always visible on its target
     const ut = tailOf(u);
@@ -1570,6 +1799,11 @@ function render() {
     ctx.restore(); ctx.globalAlpha = 1;
   }
 
+  if (G.pet) {   // the Man Flu pet: bobbing and happy
+    const pt = G.pet, bob = Math.sin(G.t * 7) * 1.5 * (Math.hypot(pt.vx || 0, pt.vy || 0) > 8 ? 1 : 0.4);
+    rect(pt.x - 5 - cam.x + shx, pt.y + 7 - cam.y + shy, 10, 2, '#000', 0.3);
+    sprite(SPR.pet, pt.x, pt.y + bob);
+  }
   // players
   for (const p of players) {
     const s = Math.round(16 * S.scale * sizeOf(p)), by = p.down ? 0 : Math.sin(p.bob) * 1.2, base = p.idx ? SPR.player2 : SPR.player;
@@ -1626,6 +1860,7 @@ function render() {
   }
   drawGlobs();
   if (lvKey === 'brain') { drawDarkness(); drawWeb(); drawBolts(); }
+  drawPowers();
   if (lvKey === 'lung') {
     const br = breathY();
     if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
@@ -1647,6 +1882,7 @@ function render() {
   drawHud();
   if (touchUI && state === 'play') drawTouch();
   if (state === 'title') drawTitle();
+  if (state === 'powers') drawPowersMenu();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
@@ -1712,6 +1948,13 @@ function drawHud() {
       rect(VIEW_W / 2 - (txt.length * FONT_ADV) / 2 - 5, 39, txt.length * FONT_ADV + 10, FONT_H + 4, fl ? '#a01880' : '#400a38', 0.9);
       drawText(txt, VIEW_W / 2, 41, '#fff', 1, 'c');
     }
+  }
+  const boss = G.units.find(u => u.boss && !u.dead);
+  if (boss) {   // boss health bar along the bottom of the screen
+    const w = Math.min(200, VIEW_W - 40), x = VIEW_W / 2 - w / 2, y = VIEW_H - 32, fr = clamp(boss.hpF !== undefined ? boss.hpF : boss.hp / boss.maxHp, 0, 1), fl = boss.morph || boss.morphK > 0;
+    drawText('MAN FLU', VIEW_W / 2, y - 16, fl && Math.floor(G.t * 8) % 2 ? '#ff9ac8' : '#c8f060', 2, 'c');
+    rect(x - 2, y - 2, w + 4, 11, '#000'); rect(x - 1, y - 1, w + 2, 9, '#a8c83a'); rect(x, y, w, 7, '#2a0a08');
+    rect(x, y, Math.round(w * fr), 7, fl ? '#ff9ac8' : '#d03020'); rect(x, y, Math.round(w * fr), 2, fl ? '#ffd0e4' : '#ff6a50');
   }
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
   drawText('KILLS ' + G.kills, VIEW_W - 4, 13, '#fff', 1, 'r');
@@ -1779,8 +2022,11 @@ function drawTouch() {
 const TBW = 94, TBH = 20;
 const tbtn = i => ({ x: i % 2 ? 4 : -98, y: VIEW_H - 76 + (i >> 1) * 24 });   // 2x2 button grid anchored to the bottom
 const lvBtn = () => ({ x: VIEW_W / 2 - 75, y: VIEW_H - 88, w: 150, h: 11 });
+const powBtn = () => ({ x: 4, y: 4, w: 66, h: 14 });
+const powBackBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 24, w: 80, h: 14 });
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
+  if (inRect(powBtn(), mx, my)) return 6;
   if (inRect(lvBtn(), mx, my)) return 5;
   for (let i = 0; i < 4; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
   return 0;
@@ -1815,6 +2061,11 @@ function drawTitle() {
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 6, '#fff', 1, 'c');
   }
+  {
+    const b = powBtn(), h = hov === 6 && !touchUI;
+    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#ffd24a'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
+    drawText('POWERS' + (touchUI ? '' : ' [P]'), b.x + b.w / 2, b.y + 4, '#ffd24a', 1, 'c');
+  }
   if (fsAvail()) {
     const f = fsBtnTitle();
     rect(f.x - 1, f.y - 1, f.w + 2, f.h + 2, '#4aa8ff'); rect(f.x, f.y, f.w, f.h, '#12204a');
@@ -1822,6 +2073,27 @@ function drawTitle() {
   }
   const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
   drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
+}
+function drawPowersMenu() {
+  rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
+  const c = VIEW_W / 2;
+  drawText('POWERS', c, 8, '#ffd24a', 3, 'c');
+  drawText('BEAT A LEVEL TO UNLOCK ITS POWER', c, 34, '#bfe8ff', 1, 'c');
+  const rows = UPGRADES.filter(u => u.unlock).map(u => ({ on: unlocked.has(u.id), name: u.name, info: u.info, lock: 'BEAT THE ' + LEVELS[u.unlock].name + ' LEVEL TO UNLOCK' }))
+    .concat([{ on: hasPet, name: 'MAN FLU', tag: 'PET', info: ['A LITTLE FRIEND THAT FOLLOWS YOU', 'THROUGH EVERY LEVEL'], lock: 'A SECRET WAITS IN THE BRAIN' }]);
+  const step = Math.min(40, Math.floor((VIEW_H - 74) / rows.length)), compact = step < 36;
+  rows.forEach((r, i) => {
+    const y = 44 + i * step, w = Math.min(VIEW_W - 24, 360), x = c - w / 2, h = step - 4;
+    rect(x - 1, y - 1, w + 2, h + 2, r.on ? '#ffd24a' : '#303a58'); rect(x, y, w, h, r.on ? '#1c2448' : '#0c1020');
+    drawText(r.on ? r.name : '??? ' + (r.tag ? 'SECRET' : r.name), x + 6, y + 3, r.on ? '#ffd24a' : '#6a7490', 1, 'l');
+    drawText(r.on ? (r.tag ? 'EARNED' : 'UNLOCKED') : 'LOCKED', x + w - 6, y + 3, r.on ? '#7fffd0' : '#ff9a9a', 1, 'r');
+    if (r.on) r.info.slice(0, compact ? 1 : 2).forEach((t, j) => drawText(t, x + 6, y + 13 + j * 9, '#bfe8ff', 1, 'l'));
+    else drawText(r.lock, x + 6, y + 13, '#8aa0d0', 1, 'l');
+    if (r.on && r.tag) ctx.drawImage(SPR.pet, Math.round(x + w - 22), Math.round(y + h / 2 - 6));
+  });
+  const b = powBackBtn(), h = !touchUI && inRect(b, mouse.sx, mouse.sy);
+  rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+  drawText('BACK', c, b.y + 4, '#fff', 1, 'c');
 }
 function drawLobby() {
   ctx.fillStyle = '#12060b'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -1871,7 +2143,8 @@ function drawLevelUp() {
     rect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, h ? '#ffe070' : '#4aa8ff');
     rect(r.x, r.y, r.w, r.h, h ? '#243c78' : '#12204a');
     drawText('[' + (i + 1) + ']', r.x + 4, r.y + 4, '#8aa0d0');
-    drawText(u.name, r.x + r.w / 2, r.y + 16, '#fff', 1, 'c');
+    if (u.unlock) drawText(LEVELS[u.unlock].name + ' POWER', r.x + r.w - 4, r.y + 4, '#ffd24a', 1, 'r');
+    drawText(u.name, r.x + r.w / 2, r.y + 16, u.unlock ? '#ffd24a' : '#fff', 1, 'c');
     u.desc.forEach((t, j) => drawText(t, r.x + r.w / 2, r.y + 32 + j * 9, '#bfe8ff', 1, 'c'));
     drawText(lv === 0 ? 'NEW!' : 'LV ' + lv + ' > ' + (lv + 1), r.x + r.w / 2, r.y + r.h - 12, lv === 0 ? '#7fffd0' : '#ffe070', 1, 'c');
     const pips = u.max || MAX_UP;
@@ -1891,6 +2164,7 @@ function drawOver() {
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
     .forEach(([k, v], i) => { const y0 = VIEW_H < 220 ? 86 : 94; drawText(k, c - 10, y0 + i * 10, '#bfe8ff', 1, 'r'); drawText(v, c + 10, y0 + i * 10, '#fff'); });
   if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, VIEW_H - 36, '#fff', isGuest() ? 1 : 2, 'c');
+  if (G.newPower && Math.floor(performance.now() / 300) % 4) drawText('NEW POWER UNLOCKED: ' + UPGRADES.find(u => u.id === G.newPower).name, c, VIEW_H - 50, '#ffd24a', 1, 'c');
   const b = menuBtn(), hov = !touchUI && inRect(b, mouse.sx, mouse.sy);
   rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, hov ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, hov ? '#243c78' : '#12204a');
   drawText(touchUI ? 'MENU' : 'MENU [M]', c, b.y + 4, '#fff', 1, 'c');
@@ -1898,7 +2172,7 @@ function drawOver() {
 
 // ---------------------------------------------------------------- online
 // Host-authoritative: the host simulates everything. The guest sends its input and renders snapshots.
-const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember', 'spark'];
+const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling', 'ember', 'spark', 'manflu'];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
@@ -1984,9 +2258,10 @@ function hostSend(dt) {
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)], r2(Math.max(0, p.pokeCd))]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
-    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? u.hack.i : -1]),
+    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? u.hack.i : -1, u.morph ? r2(u.morph.t / MORPH_T) : -1, u.boss ? r2(u.hp / u.maxHp) : -1, u.boss ? r2(Math.max(0, u.shotT || 0)) : -1]),
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
+    pb: G.pb.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed, b.pi]), pr: G.pr.map(b => [r1(b.x), r1(b.y), b.s, r1(b.len), r2(b.t), b.pi]), pg: G.pg.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur), g.pi, r1(g.r)]), ps: G.ps.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life), x.pi]), np: G.newPower || '', fp: G.fp.map(b => [b.id, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]), pt: G.pet ? [r1(G.pet.x), r1(G.pet.y)] : 0,
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
     bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), bo: G.bolts.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
   evq = [];
@@ -2024,7 +2299,7 @@ function applySnap(d) {
     const type = TYPE_IDS[a[2]];
     if (!u) { u = { id: a[0], x: a[3], y: a[4], dead: false, born: G.t }; net.units.set(a[0], u); }
     u.team = a[1] ? 'v' : 'i'; u.type = type; u.r = TYPES[type].r; u.tx = a[3]; u.ty = a[4]; u.weakA = a[5]; u.flash = a[6] ? 0.1 : -1;
-    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null;
+    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null; u.morphK = a[10]; u.boss = type === 'manflu'; u.hpF = a[11] >= 0 ? a[11] : undefined; if (u.boss) u.shotT = a[12];
     u.tailG = a[7] ? { x: a[7][0], y: a[7][1], t: a[7][2] } : null;
     seen.add(a[0]); list.push(u);
   }
@@ -2032,6 +2307,17 @@ function applySnap(d) {
   G.units = list;
   G.projs = d.pj.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3] }));
   G.gems = d.gm.map((a, i) => ({ x: a[0], y: a[1], ph: i * 0.7 }));
+  G.pb = (d.pb || []).map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], t: a[4], seed: a[5], pi: a[6] })); G.pr = (d.pr || []).map(a => ({ x: a[0], y: a[1], s: a[2], len: a[3], t: a[4], pi: a[5] }));
+  G.pg = (d.pg || []).map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5], pi: a[6], r: a[7] })); G.ps = (d.ps || []).map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3], pi: a[4] })); G.newPower = d.np || ''; {   // guest: snot keeps flying between snapshots (velocity extrapolation) and only eases onto the host's position
+    net.fp = net.fp || new Map(); const seenF = new Set(), list = [];
+    for (const a of d.fp || []) {
+      let b = net.fp.get(a[0]);
+      if (!b || Math.hypot(b.x - a[1], b.y - a[2]) > 24) { b = { id: a[0], x: a[1], y: a[2] }; net.fp.set(a[0], b); }
+      b.tx = a[1]; b.ty = a[2]; b.vx = a[3]; b.vy = a[4]; seenF.add(a[0]); list.push(b);
+    }
+    for (const id of net.fp.keys()) if (!seenF.has(id)) net.fp.delete(id);
+    G.fp = list;
+  } G.pet = d.pt ? { x: G.pet ? G.pet.x : d.pt[0], y: G.pet ? G.pet.y : d.pt[1], tx: d.pt[0], ty: d.pt[1], vx: 0, vy: 0 } : null;
   G.slimes = d.sl.map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3] }));
   G.globs = d.gl.map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5] }));
   G.bolts = (d.bo || []).map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], t: a[4], seed: a[5], warn: BOLT.warn, fire: BOLT.fire }));
@@ -2060,9 +2346,15 @@ function guestTick(dt) {
     if (p.tailG) p.tailG.t += dt;
     if (p.pokeCd > 0) p.pokeCd -= dt;
   }
-  for (const u of G.units) { u.x += (u.tx - u.x) * k; u.y += (u.ty - u.y) * k; u.flash -= dt; if (u.tailG) u.tailG.t += dt; }
+  for (const u of G.units) { u.x += (u.tx - u.x) * k; u.y += (u.ty - u.y) * k; u.flash -= dt; if (u.tailG) u.tailG.t += dt; if (u.shotT > 0) u.shotT -= dt; }
   for (const p of G.projs) { p.x += p.vx * dt; p.y += p.vy * dt; }
   for (const g of G.globs) g.t += dt;
+  for (const b of G.fp) { b.tx += b.vx * dt; b.ty += b.vy * dt; b.x += b.vx * dt + (b.tx - b.x) * k; b.y += b.vy * dt + (b.ty - b.y) * k; }
+  if (G.pet) { G.pet.x += (G.pet.tx - G.pet.x) * k; G.pet.y += (G.pet.ty - G.pet.y) * k; G.pet.vx = (G.pet.tx - G.pet.x) * 8; G.pet.vy = (G.pet.ty - G.pet.y) * 8; }
+  for (const g of G.pg) g.t += dt;
+  for (const b of G.pb) b.t += dt;
+  for (const b of G.pr) b.t += dt;
+  for (const g of G.ps) g.life -= dt;
   if (G.cough) G.cough.t += dt;
   for (const b of G.beams) b.t += dt;
   for (const b of G.bolts) b.t += dt;
@@ -2107,7 +2399,7 @@ requestAnimationFrame(frame);
 
 // small hook for automated testing
 window.__dbg = { cont: overContinue, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, pokeRef(p, t) { return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k === 'campaign' ? CAMPAIGN[0] : k; camp = null; newGame(false); },
-  startCamp(i, S0) { lvSel = 'campaign'; camp = { i, S0: S0 || null }; startGame(false); }, reach: reachOf, spot: spotOf, get LEVELS() { return LEVELS; }, get tuneSet() { return tuneSet(); }, get fix() { return G.fix; }, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
+  startCamp(i, S0) { lvSel = 'campaign'; camp = { i, S0: S0 || null }; startGame(false); }, reach: reachOf, spot: spotOf, get LEVELS() { return LEVELS; }, get tuneSet() { return tuneSet(); }, get fix() { return G.fix; }, get unlocked() { return unlocked; }, gainXp, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
   start: startGame, step(n, dt = 1 / 60) { for (let i = 0; i < n && state === 'play'; i++) update(dt); },
   pick: i => { if (state === 'levelup') chooseUpgrade(i); } };
 })();

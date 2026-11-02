@@ -80,6 +80,31 @@ function makeBlob(o) {
   return c;
 }
 
+// the Man Flu boss: huge, spiky, angry yellow slit eyes, running red nose and a toothy snarl
+function makeManFlu() {
+  const c = makeBlob({ r: 22, body: '#a8c83a', light: '#d8f060', dark: '#6a8a1c', outline: '#26340a', spikeColor: '#ffe870', spikes: 16, spikeLen: 6, spots: true });
+  const g = c.getContext('2d'), cx = Math.floor(c.width / 2), cy = Math.floor(c.height / 2);
+  for (const sd of [-1, 1]) {
+    const ex = cx + sd * 8 - 3;
+    px(g, ex - 1, cy - 9, '#2a0a08', 8, 8); px(g, ex, cy - 8, '#ffe040', 6, 6); px(g, ex + 2, cy - 8, '#ff2010', 2, 6);
+    for (let i = 0; i < 10; i++) px(g, cx + sd * (13 - i) - (sd > 0 ? 1 : 0), cy - 14 + Math.floor(i * 0.7), '#26340a', 1, 3);
+  }
+  px(g, cx - 3, cy - 1, '#e03030', 6, 5); px(g, cx - 2, cy, '#ff8070', 2, 1); px(g, cx - 1, cy + 4, '#d8f890', 2, 5); px(g, cx - 1, cy + 9, '#d8f890', 3, 1);
+  px(g, cx - 10, cy + 10, '#2a0a08', 20, 7);
+  for (let i = 0; i < 5; i++) { px(g, cx - 9 + i * 4, cy + 10, '#fff', 2, 3); px(g, cx - 7 + i * 4, cy + 14, '#fff', 2, 3); }
+  return c;
+}
+// ...and what it turns into: a small, cute pet
+function makePet() {
+  const c = makeBlob({ r: 6, body: '#a8c83a', light: '#d8f060', dark: '#6a8a1c', outline: '#26340a' });
+  const g = c.getContext('2d'), cx = Math.floor(c.width / 2), cy = Math.floor(c.height / 2);
+  px(g, cx - 4, cy - 3, '#1a1a2a', 2, 3); px(g, cx + 2, cy - 3, '#1a1a2a', 2, 3);
+  px(g, cx - 4, cy - 3, '#fff', 1, 1); px(g, cx + 2, cy - 3, '#fff', 1, 1);
+  px(g, cx - 5, cy + 1, '#ff9ab8', 2, 1); px(g, cx + 3, cy + 1, '#ff9ab8', 2, 1);
+  px(g, cx - 1, cy, '#e04040', 2, 1); px(g, cx - 1, cy + 2, '#26340a', 2, 1); px(g, cx - 2, cy + 1, '#26340a', 1, 1); px(g, cx + 1, cy + 1, '#26340a', 1, 1);
+  return c;
+}
+
 function makeFighter(c1, c2) {
   const rows = [
     '.....oooooo.....',
@@ -272,6 +297,9 @@ function makePacemaker(st) {
   SPR.virus.ember = makeBlob({ r: 4, body: '#ff8a30', light: '#ffd070', dark: '#c04010', outline: '#4a1004', spikeColor: '#fff0a0', spikes: 6, spikeLen: 2, face: true });
 
   SPR.virus.spark = makeBlob({ r: 4, body: '#7aa8ff', light: '#c8e0ff', dark: '#3a5ac0', outline: '#101a50', spikeColor: '#e0f0ff', spikes: 4, spikeLen: 3, face: true });
+
+  SPR.virus.manflu = makeManFlu();
+  SPR.pet = makePet();
 
   SPR.player = makeFighter('#4aa8ff');
   SPR.ally = makeFighter('#3fd6a6');
