@@ -108,35 +108,58 @@ function angDiff(a, b) {
 
 // ---------------------------------------------------------------- audio
 let AC = null, AU = null; const sfxT = {};   // AC: gameplay sounds (frozen while the game is held), AU: sounds of the pause screens themselves
-const UI_SFX = new Set(['lvl', 'pick', 'end', 'start', 'charge']);
+const UI_SFX = new Set(['lvl', 'pick', 'end', 'start']);
 let uiSfx = false;   // set while the Man Flu scene runs, so its own sounds are not frozen with the rest
 function mkAudio() { try { return new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
 function initAudio() {
   if (!AC) { AC = mkAudio(); AU = mkAudio(); }
-  if (AU && AU.state === 'suspended') AU.resume();
-  syncAudio(true);
+  for (const c of [AC, AU]) if (c && c.state === 'suspended') c.resume();
 }
 const gameHeld = () => state === 'paused' || state === 'levelup' || state === 'over' || !!G.cine;
 let acHeld = false;
-function syncAudio(force) {   // freeze / unfreeze every gameplay sound at exactly where it is
-  if (!AC) return;
-  const h = gameHeld();
-  if (h === acHeld && !force) return;
-  acHeld = h;
-  if (h) { if (AC.state === 'running') AC.suspend(); } else if (AC.state !== 'running') AC.resume();
-}
-function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
-  if (evq) evq.push(['s', key, f, d, type, vol, slide]);
-  const ctx = UI_SFX.has(key) || uiSfx ? AU : AC;
-  if (!ctx || (ctx === AC && acHeld)) return;
+// AudioContext.suspend()/resume() lag by seconds on some browsers, so the context keeps running and the gameplay
+// sounds are tracked by hand: on hold each one is cut and its unplayed rest is stored, on resume the rest is played.
+let live = [], rest = [];
+function voice(ctx, f, d, type, vol, slide, track) {
   const t = ctx.currentTime;
-  if (sfxT[key] && t - sfxT[key] < 0.04) return;
-  sfxT[key] = t;
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d);
+  if (track) { const v = { o, g, t, f, d, type, vol, slide }; live.push(v); o.onended = () => { live = live.filter(x => x !== v); }; }
+}
+function syncAudio() {
+  if (!AC) return;
+  const h = gameHeld();
+  if (h === acHeld) return;
+  acHeld = h;
+  const now = AC.currentTime;
+  if (h) {
+    for (const v of live) {
+      const e = now - v.t, r = v.d - e;
+      v.o.onended = null;
+      try { v.g.gain.cancelScheduledValues(0); v.g.gain.value = 0; v.o.stop(); } catch (x) {}
+      if (r > 0.03) {
+        const k = e / v.d, f2 = v.slide ? Math.max(30, v.f) * Math.pow(Math.max(30, v.f + v.slide) / Math.max(30, v.f), k) : v.f;
+        rest.push({ f: f2, d: r, type: v.type, vol: v.vol * Math.pow(0.0001 / v.vol, k), slide: v.slide ? (v.f + v.slide) - f2 : 0 });
+      }
+    }
+    live = [];
+  } else {
+    for (const r of rest) voice(AC, r.f, r.d, r.type, r.vol, r.slide, true);
+    rest = [];
+  }
+}
+function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
+  if (evq) evq.push(['s', key, f, d, type, vol, slide]);
+  const own = UI_SFX.has(key) || uiSfx;
+  const ctx = own ? AU : AC;
+  if (!ctx || (!own && acHeld)) return;
+  const t = ctx.currentTime;
+  if (sfxT[key] && t - sfxT[key] < 0.04) return;
+  sfxT[key] = t;
+  voice(ctx, f, d, type, vol, slide, !own);
 }
 
 // ---------------------------------------------------------------- input
