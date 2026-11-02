@@ -86,22 +86,36 @@ function angDiff(a, b) {
 }
 
 // ---------------------------------------------------------------- audio
-let AC = null; const sfxT = {};
+let AC = null, AU = null; const sfxT = {};   // AC: gameplay sounds (frozen while the game is held), AU: sounds of the pause screens themselves
+const UI_SFX = new Set(['lvl', 'pick', 'end', 'start', 'charge']);
+let uiSfx = false;   // set while the Man Flu scene runs, so its own sounds are not frozen with the rest
+function mkAudio() { try { return new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
 function initAudio() {
-  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* no audio */ } }
-  if (AC && AC.state === 'suspended') AC.resume();
+  if (!AC) { AC = mkAudio(); AU = mkAudio(); }
+  if (AU && AU.state === 'suspended') AU.resume();
+  syncAudio(true);
+}
+const gameHeld = () => state === 'paused' || state === 'levelup' || state === 'over' || !!G.cine;
+let acHeld = false;
+function syncAudio(force) {   // freeze / unfreeze every gameplay sound at exactly where it is
+  if (!AC) return;
+  const h = gameHeld();
+  if (h === acHeld && !force) return;
+  acHeld = h;
+  if (h) { if (AC.state === 'running') AC.suspend(); } else if (AC.state !== 'running') AC.resume();
 }
 function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   if (evq) evq.push(['s', key, f, d, type, vol, slide]);
-  if (!AC) return;
-  const t = AC.currentTime;
+  const ctx = UI_SFX.has(key) || uiSfx ? AU : AC;
+  if (!ctx || (ctx === AC && acHeld)) return;
+  const t = ctx.currentTime;
   if (sfxT[key] && t - sfxT[key] < 0.04) return;
   sfxT[key] = t;
-  const o = AC.createOscillator(), g = AC.createGain();
+  const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-  o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d);
 }
 
 // ---------------------------------------------------------------- input
@@ -246,9 +260,8 @@ function titleChoice(m) {
   titleMsg = '';
   if (m < 5) camp = null;   // a new run from the title always starts the campaign from the beginning
   if (m === 1) startGame(false);
-  else if (m === 2) startGame(true);
-  else if (m === 3) { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
-  else if (m === 4) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
+  else if (m === 2) { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
+  else if (m === 3) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
   else if (m === 6) state = 'powers';
   else if (m === 5) { lvSel = LEVEL_SEL[(LEVEL_SEL.indexOf(lvSel) + 1) % LEVEL_SEL.length]; lvKey = lvSel === 'campaign' ? CAMPAIGN[0] : lvSel; camp = null; newGame(false); }   // cycle campaign / levels (the title shows it behind the menu)
 }
@@ -261,33 +274,23 @@ function onKey(k) {
     else if (k === 'enter') lobbyPress('GO');
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
-  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('234'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); else if (k === 'p') titleChoice(6); }
+  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'l') titleChoice(5); else if (k === 'p') titleChoice(6); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
   else if (state === 'over' && G.overT > 0.7 && (k === 'enter' || k === ' ') && !isGuest()) overContinue();
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
   else if (state === 'play' && k === ' ') pokeNearestKey(0);
   else if (state === 'play' && k === 'f') toggleFire(0);
-  else if (state === 'play' && k === 'u' && coop && !net) toggleFire(1);
-  else if (state === 'play' && k === 'enter' && coop && !net) pokeNearestKey(1);
   else if (k === 'p' || k === 'escape') doPause();
 }
 function gamepads() { try { return [...navigator.getGamepads()].filter(Boolean); } catch (e) { return []; } }
 // movement + optional explicit aim for one player.
-// P1: WASD + mouse.  P2: arrows + IJKL.  Gamepads: first pad -> P2 (or P1 in single player), second pad -> P1.
+// WASD / arrows + mouse, or the first gamepad. (Online co-op: the other player is remote.)
 function readInput(p) {
   const K = k => keys[k] ? 1 : 0;
-  let mx, my, aim = null, poke = false, toggle = false;
-  const solo = !coop || !!net;
-  if (p.scheme === 0) {
-    mx = K('d') - K('a'); my = K('s') - K('w');
-    if (solo) { mx += K('arrowright') - K('arrowleft'); my += K('arrowdown') - K('arrowup'); }
-  } else {
-    mx = K('arrowright') - K('arrowleft'); my = K('arrowdown') - K('arrowup');
-    const ax = K('l') - K('j'), ay = K('k') - K('i');
-    if (ax || ay) aim = Math.atan2(ay, ax);
-  }
-  const pad = gamepads()[solo ? 0 : (p.scheme === 1 ? 0 : 1)];
+  let mx = 0, my = 0, aim = null, poke = false, toggle = false;
+  mx = K('d') - K('a') + K('arrowright') - K('arrowleft'); my = K('s') - K('w') + K('arrowdown') - K('arrowup');
+  const pad = gamepads()[0];
   if (pad) {
     const dz = v => Math.abs(v) < 0.2 ? 0 : v;
     mx += dz(pad.axes[0] || 0); my += dz(pad.axes[1] || 0);
@@ -298,7 +301,7 @@ function readInput(p) {
     const rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0);
     if (rx || ry) aim = Math.atan2(ry, rx);
   }
-  if (touchUI && p.scheme === 0) {
+  if (touchUI) {
     const m = stickVec(touch.move, 0.12), a = stickVec(touch.aim, 0.3);
     if (m) { mx += m.x; my += m.y; }
     if (a && a.l > 0) aim = Math.atan2(a.y, a.x);
@@ -975,7 +978,7 @@ function lashTarget(u, organsOnly) {
 }
 
 function update(dt) {
-  if (G.cine) { cineStep(dt); return; }   // the Man Flu scene: the rest of the game is paused
+  if (G.cine) { uiSfx = true; cineStep(dt); uiSfx = false; return; }   // the Man Flu scene: the rest of the game is paused
   G.t += dt;
   if (G.t >= lvl().time) { endGame(true, lvl().win); return; }
   G.msgT -= dt; G.shake = Math.max(0, G.shake - 20 * dt);
@@ -1950,7 +1953,7 @@ function drawHud() {
   rect(3, xy, 82, 5, '#000'); rect(4, xy + 1, 80, 3, '#102840');
   rect(4, xy + 1, Math.round(80 * S.xp / S.next), 3, '#38b8ff');
   drawText('LV ' + S.level + '  RES ' + Math.round(S.res * 100) + '%', 4, xy + 8, '#bfe8ff');
-  const keyHint = touchUI ? '' : (coop && !net ? ' [F/U]' : ' [F]');
+  const keyHint = touchUI ? '' : ' [F]';
   if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + 'FIRE ' + (p.autoFire ? 'ON' : 'OFF')).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
   {   // active medicine effects
     const locals = isGuest() ? [players[meIdx()]] : net ? [players[0]] : players;
@@ -1980,13 +1983,7 @@ function drawHud() {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
     }
-    drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 26, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
-    G.fix.forEach((f, i) => {
-      const bx = 4 + i * 9, hot = f.hackN > 0, fl = Math.floor(G.t * 6) % 2;
-      rect(bx - 1, VIEW_H - 13, 8, 10, hot && fl ? '#ff40d0' : '#000', hot ? 1 : 0.7); rect(bx, VIEW_H - 12, 6, 8, hot ? (fl ? '#ffffff' : '#a01880') : ['#2a9ac0', '#c8a020', '#b04030'][f.st]);
-      if (f.st === 2 && !hot) { rect(bx + 1, VIEW_H - 11, 1, 1, '#000'); rect(bx + 4, VIEW_H - 11, 1, 1, '#000'); rect(bx + 2, VIEW_H - 9, 2, 2, '#000'); rect(bx + 1, VIEW_H - 7, 1, 1, '#000'); rect(bx + 4, VIEW_H - 7, 1, 1, '#000'); }
-      if (f.hackP > 0.01) rect(bx, VIEW_H - 4, Math.round(6 * clamp(f.hackP, 0, 1)), 1, '#ff40d0');
-    });
+    drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 62, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
     const hacked = G.fix.filter(f => f.hackN > 0);
     if (hacked.length) {   // loud banner: something is being attacked right now
       const top = hacked.reduce((a, b) => b.hackP > a.hackP ? b : a), txt = '! ' + fixTag(top) + ' UNDER ATTACK' + (hacked.length > 1 ? ' +' + (hacked.length - 1) : '') + ' !', fl = Math.floor(G.t * 5) % 2;
@@ -2005,13 +2002,23 @@ function drawHud() {
   drawText('KILLS ' + G.kills, VIEW_W - 4, 13, '#fff', 1, 'r');
   drawText('TURNED ' + G.conv, VIEW_W - 4, 22, '#7fe8ff', 1, 'r');
   if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + lvl().name, VIEW_W - 4, 31, '#ffe070', 1, 'r');
-  // organs
-  organs.forEach((o, i) => {
-    const x = 4 + i * 24, y = VIEW_H - 14, inf = o.team === 'v';
-    rect(x - 1, y - 1, 24, 13, '#000', 0.7);
-    rect(x, y, 22, 11, inf ? '#3f6a22' : '#1c4a78');
-    drawText(o.tag, x + 2, y + 2, inf ? '#e8ff7a' : '#fff', 1, 'l', false);
-  });
+  // minimap: where every objective is and how it is doing (blue ok, yellow damaged, red lost, flashing magenta being hacked)
+  {
+    const mw = 60, mh = 45, mx = 4, my = VIEW_H - mh - 4, k = mw / CFG.W, fl = Math.floor(G.t * 6) % 2;
+    rect(mx - 1, my - 1, mw + 2, mh + 2, '#000', 0.75); rect(mx, my, mw, mh, '#0c1424', 0.6);
+    const vx = mx + cam.x * k, vy = my + cam.y * k, vw = VIEW_W * k, vh = VIEW_H * k;
+    rect(vx, vy, vw, 1, '#fff', 0.35); rect(vx, vy + vh - 1, vw, 1, '#fff', 0.35); rect(vx, vy, 1, vh, '#fff', 0.35); rect(vx + vw - 1, vy, 1, vh, '#fff', 0.35);
+    const dot = (x, y, r, col) => rect(Math.round(mx + clamp(x * k, r, mw - r - 1) - r), Math.round(my + clamp(y * k, r, mh - r - 1) - r), r * 2 + 1, r * 2 + 1, col);
+    for (const o of organs) { const inf = o.team === 'v'; dot(o.x, o.y, 2, '#000'); dot(o.x, o.y, 1, inf ? '#9ae05a' : '#2a7ad8'); }
+    for (const f of G.fix) {
+      const hot = f.hackN > 0, col = hot ? (fl ? '#ffffff' : '#ff40d0') : ['#4ad8ff', '#ffd060', '#ff5a4a'][f.st];
+      dot(f.x, f.y, 2, '#000'); dot(f.x, f.y, hot || f.st > 0 ? 2 : 1, col);
+      if (f.st === 2 && !hot && fl) dot(f.x, f.y, 0, '#000');
+    }
+    for (const p of players) dot(p.x, p.y, 1, p.down ? '#ff9a9a' : p.idx ? '#ffc070' : '#7fffd0');
+    const lbl = organs.length ? 'ORGANS ' + organs.filter(o => o.team === 'i').length + '/' + organs.length : '';
+    if (lbl) drawText(lbl, mx, my - 9, '#bfe8ff', 1, 'l');
+  }
   if (G.msgT > 0) {
     const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 54;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
     rect(VIEW_W / 2 - w / 2, my, w, FONT_H * sc + 4, '#000', 0.6);
@@ -2065,7 +2072,7 @@ function drawTouch() {
 }
 
 const TBW = 94, TBH = 20;
-const tbtn = i => ({ x: i % 2 ? 4 : -98, y: VIEW_H - 76 + (i >> 1) * 24 });   // 2x2 button grid anchored to the bottom
+const tbtn = i => ({ x: i ? (i === 1 ? -98 : 4) : -47, y: VIEW_H - 76 + (i ? 1 : 0) * 24 });   // 1 PLAYER on top, the two online buttons below, anchored to the bottom
 const lvBtn = () => ({ x: VIEW_W / 2 - 75, y: VIEW_H - 88, w: 150, h: 11 });
 const powBtn = () => ({ x: 4, y: 4, w: 66, h: 14 });
 const powBackBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 24, w: 80, h: 14 });
@@ -2073,7 +2080,7 @@ function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
   if (inRect(powBtn(), mx, my)) return 6;
   if (inRect(lvBtn(), mx, my)) return 5;
-  for (let i = 0; i < 4; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
+  for (let i = 0; i < 3; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
   return 0;
 }
 function drawTitle() {
@@ -2089,19 +2096,19 @@ function drawTitle() {
   }
   let lines = touchUI
     ? ['LEFT STICK MOVES, RIGHT STICK AIMS', 'ONLINE CO-OP WORKS BETWEEN PHONES AND PCS']
-    : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'LOCAL CO-OP: P1 WASD + MOUSE, P2 ARROWS + IJKL'];
+    : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'ONLINE CO-OP: HOST OR JOIN A ROOM WITH A 4-LETTER CODE'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS VIRUSES INTO ALLIES',
     lvSel === 'campaign' ? 'CAMPAIGN: BRAIN, LUNGS, HEART. UPGRADES CARRY OVER' : 'SHOOTING IS A LEVEL-UP UNLOCK. SURVIVE ' + Math.round(lvl().time / 60) + ' MINUTES');
   if (compact) lines = [lines[0], lines[2], lines[4]];
   lines.forEach((t, i) => drawText(t, c, (compact ? 52 : 100) + i * (compact ? 10 : 9), i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
-  const labels = touchUI ? ['1 PLAYER', 'LOCAL CO-OP', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] LOCAL CO-OP', '[3] HOST ONLINE', '[4] JOIN ONLINE'];
+  const labels = touchUI ? ['1 PLAYER', 'HOST ONLINE', 'JOIN ONLINE'] : ['[1] 1 PLAYER', '[2] HOST ONLINE', '[3] JOIN ONLINE'];
   {
     const b = lvBtn(), h = hov === 5 && !touchUI;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#7a6a30'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
     drawText('LEVEL: ' + (lvSel === 'campaign' ? 'CAMPAIGN' : lvl().name) + (touchUI ? '' : ' [L]'), c, b.y + 2, '#ffe070', 1, 'c');
   }
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 6, '#fff', 1, 'c');
@@ -2432,6 +2439,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state === 'play' && !isGuest() && (document.hidden || (isTouch && innerHeight > innerWidth))) state = 'paused';
   if (state !== 'play' && (touch.move || touch.aim)) touch.move = touch.aim = null;
+  syncAudio();
   if (isGuest()) guestTick(dt);
   else { if (state === 'play') update(dt); hostSend(dt); }
   render();
