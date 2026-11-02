@@ -26,18 +26,18 @@ const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.18, swarm: 0.85, dmg: 0.85, hp: 0.92, arc: 1.18 } } },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
-    tune: { solo: { spawn: 0.61, swarm: 1.65, dmg: 1.65, hp: 1.29, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
+    tune: { solo: { spawn: 0.56, swarm: 1.8, dmg: 1.8, hp: 1.34, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240],
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
-    tune: { solo: { spawn: 0.8, swarm: 1.25, dmg: 1.25, hp: 1.12, sab: 0.59, arc: 0.48 }, camp: { spawn: 0.53, swarm: 1.9, dmg: 1.9, hp: 1.38, sab: 0.48, arc: 0.48 } },
+    tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.33, arc: 0.48 }, camp: { spawn: 0.43, swarm: 2.3, dmg: 2.3, hp: 1.52, sab: 0.3, arc: 0.4 } },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
-    tune: { solo: { spawn: 0.69, swarm: 1.45, dmg: 1.45, hp: 1.2, sab: 0.49, arc: 0.49 }, camp: { spawn: 0.4, swarm: 2.5, dmg: 2.5, hp: 1.58, sab: 0.4, arc: 0.4 } },
+    tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.29, arc: 0.43 }, camp: { spawn: 0.35, swarm: 2.85, dmg: 2.85, hp: 1.69, sab: 0.29, arc: 0.37 } },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
 };
 const FIXNAMES = { syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
@@ -335,7 +335,7 @@ function newGame(co) {
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
-  G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5) }));
+  G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5), hackP: 0, hackN: 0 }));
   G.edges = lvl().web || [];   // brain: neuron lanes between the synapses (decoration: they carry the data-flow pulses)
   G.sabT = 20 * ease('sab'); G.hintI = 0;
   if (lvl().intro) say(lvl().intro);
@@ -618,12 +618,12 @@ function mitosisStep(p, dt) {
 }
 function pokeStep(p, dt) { p.pokeCd -= dt; tailStep(p, dt, reachOf(p) * 1.6, 'v'); }
 function repairFix(f) {
-  f.st = Math.max(0, f.st - 1); f.cd = 8; G.fixed = (G.fixed || 0) + 1;   // clogging is paused for a while after a repair
+  f.st = Math.max(0, f.st - 1); f.cd = 8; f.hackP = 0; G.fixed = (G.fixed || 0) + 1;   // clogging is paused for a while after a repair
   burst(f.x, f.y, '#7fe8ff', 14, 70); tip(f.x, f.y - 20, f.st ? 'BETTER' : 'OPEN!', '#7fffd0');
   dropGem(f.x, f.y, 2); sfx('conv', 600, 0.15, 'sine', 0.04, 400);
 }
 function clogFix(f) {
-  f.st = Math.min(2, f.st + 1); f.cd = 3;
+  f.st = Math.min(2, f.st + 1); f.cd = 3; f.hackP = 0;
   burst(f.x, f.y, '#9ae05a', 12, 60); tip(f.x, f.y - 20, f.st > 1 ? 'COLLAPSED!' : 'CLOGGED!', '#ffd060');
   sfx('inf', 220, 0.15, 'sawtooth', 0.03, -120);
 }
@@ -784,10 +784,27 @@ function sickSpawn(f, dt, fast, type) {
   }
 }
 
+const ALLY_T = 18;   // seconds between the allies a healthy objective produces
+const HACK_T = 3.5, HACK_R = 34;   // seconds one saboteur needs to flip a fixable one step, and how close it must be to stay linked
 function fixStep(dt, alive) {
   if (!G.fix.length) return;
   const T = lvl().txt, phase = phaseNow(), O = oxy();
-  for (const f of G.fix) { f.weakA += f.weakS * dt; f.cd -= dt; }
+  for (const f of G.fix) {
+    f.weakA += f.weakS * dt; f.cd -= dt;
+    if (f.hackN > 0 && canBreak(f)) {   // saboteurs linked to it are hacking it; more of them hack faster
+      if (!f.hacking) { f.hacking = true; sfx('charge', 330, 0.5, 'square', 0.03, -200); }
+      f.hackP += dt * (1 + 0.6 * (f.hackN - 1)) / HACK_T;
+      if (f.hackP >= 1) { clogFix(f); f.hacking = false; }
+    } else { f.hacking = false; f.hackP = Math.max(0, f.hackP - dt * 0.6); }
+    f.hackN = 0;
+    if (f.st === 0) {   // a healthy objective slowly produces an ally to help defend it
+      f.allyMax = ALLY_T; f.allyT = (f.allyT == null ? rand(6, ALLY_T) : f.allyT) - dt;
+      if (f.allyT <= 0) {
+        f.allyT = ALLY_T;
+        if (count('i') < CFG.MAX_ALLY) { const a = rand(0, 6.283); burst(f.x, f.y, '#7fe8ff', 8, 50); addUnit('i', 'basic', f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 20); }
+      }
+    } else f.allyMax = 0;
+  }
   beatStep(dt);
   if (phase !== G.phase) { G.phase = phase; say(phase === 2 ? T.p2 : T.p3); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200); }
   G.sabT -= dt;   // saboteurs
@@ -935,7 +952,6 @@ function lashTarget(u, organsOnly) {
     }
   }
   for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);
-  for (const f of G.fix) if (foe === 'i' && canBreak(f) && u.type === 'saboteur') test(f);   // only saboteurs clog the fixables; repairing them is the player's job
   return best;
 }
 
@@ -1075,6 +1091,8 @@ function update(dt) {
       if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = u.team === 'v' ? rand(18, 26) : rand(5, 8); }   // viruses wait much longer than allies between lashes
     }
     if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
+    u.hack = null;   // saboteurs stop next to a fixable and hack it: they stay linked, and it only flips if they survive
+    if (u.type === 'saboteur' && u.team === 'v' && u.tgt && u.tgt.fix && canBreak(u.tgt) && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < HACK_R) { u.hack = u.tgt; u.tgt.hackN++; dx = 0; dy = 0; }
     if (u.stuckT > 0) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime
     const kk = Math.min(1, 6 * dt);
     u.vx += (dx * u.speed - u.vx) * kk; u.vy += (dy * u.speed - u.vy) * kk;
@@ -1431,7 +1449,37 @@ function render() {
         const bx2 = Math.round(f.x - 12 - cam.x + shx), by2 = Math.round(f.y + 25 - cam.y + shy);
         rect(bx2 - 1, by2 - 1, 26, 4, '#000', 0.7); rect(bx2, by2, Math.round(24 * clamp(1 - f.spawnT / f.spawnMax, 0, 1)), 2, heart ? '#ff9a40' : '#9ae05a');
       }
-      drawText(FIXNAMES[f.kind][f.st], f.x - cam.x + shx, f.y + 17 - cam.y + shy, ['#7fe8ff', '#ffd060', '#ff8a7a'][f.st], 1, 'c');
+      const fl = Math.floor(G.t * 4) % 2;
+      if (f.st === 0 && f.allyMax > 0) {   // when the next ally pops out
+        const bx2 = Math.round(f.x - 12 - cam.x + shx), by2 = Math.round(f.y + 25 - cam.y + shy);
+        rect(bx2 - 1, by2 - 1, 26, 4, '#000', 0.7); rect(bx2, by2, Math.round(24 * clamp(1 - f.allyT / f.allyMax, 0, 1)), 2, '#7fe8ff');
+      }
+      drawText(FIXNAMES[f.kind][f.st], f.x - cam.x + shx, f.y + 17 - cam.y + shy, f.st === 2 && fl ? '#ffffff' : ['#7fe8ff', '#ffd060', '#ff8a7a'][f.st], 1, 'c');
+      const fx0 = f.x - cam.x + shx, fy0 = f.y - cam.y + shy;
+      if (f.st === 2) {   // lost: a pulsing red ring and a cross, readable from afar
+        const pu = 0.5 + 0.5 * Math.sin(G.t * 5);
+        ctx.strokeStyle = 'rgba(255,70,60,' + (0.45 + 0.4 * pu) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(fx0, fy0, 24 + 2 * pu, 0, 6.283); ctx.stroke();
+        for (let i = -6; i <= 6; i += 2) { rect(fx0 + i - 1, fy0 + i - 1 - 30, 3, 3, '#000', 0.6); rect(fx0 + i, fy0 + i - 30, 2, 2, '#ff4a3a'); rect(fx0 - i - 1, fy0 + i - 1 - 30, 3, 3, '#000', 0.6); rect(fx0 - i, fy0 + i - 30, 2, 2, '#ff4a3a'); }
+      }
+      if (f.hackP > 0.01 || f.hackN > 0) {   // being hacked: alarm ring, progress arc and a percentage
+        const hot = f.hackN > 0, pu = 0.5 + 0.5 * Math.sin(G.t * 14);
+        if (hot) { ctx.strokeStyle = 'rgba(255,60,200,' + (0.3 + 0.5 * pu) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx0, fy0, 27 + 3 * pu, 0, 6.283); ctx.stroke(); }
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(fx0, fy0, 21, 0, 6.283); ctx.stroke();
+        ctx.strokeStyle = hot ? '#ff40d0' : '#a04080'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(fx0, fy0, 21, -1.5708, -1.5708 + 6.283 * clamp(f.hackP, 0, 1)); ctx.stroke();
+        if (hot) drawText('HACKING ' + Math.round(f.hackP * 100) + '%', fx0, fy0 - 40, fl ? '#ffffff' : '#ff60e0', 1, 'c');
+      }
+    }
+    for (const u of G.units) {   // the saboteurs' data link to the fixable they are hacking
+      const f = u.hack || u.hackG;
+      if (!f || u.dead || u.team !== 'v') continue;
+      const ax = u.x - cam.x + shx, ay = u.y - cam.y + shy, bx = f.x - cam.x + shx, by = f.y - cam.y + shy, L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L;
+      const n = Math.max(3, Math.floor(L / 5));
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, j = Math.sin(G.t * 40 + i * 2.3 + u.id) * 2.2 * Math.sin(k * 3.1416);
+        rect(ax + (bx - ax) * k + nx * j - 1, ay + (by - ay) * k + ny * j - 1, 2, 2, '#ff40d0', 0.8);
+      }
+      for (let i = 0; i < 3; i++) { const k = (G.t * 1.6 + i / 3) % 1; rect(ax + (bx - ax) * k - 1.5, ay + (by - ay) * k - 1.5, 4, 4, '#fff'); }
     }
   }
 
@@ -1652,7 +1700,18 @@ function drawHud() {
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
     }
     drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 26, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
-    G.fix.forEach((f, i) => { const bx = 4 + i * 9; rect(bx - 1, VIEW_H - 13, 8, 10, '#000', 0.7); rect(bx, VIEW_H - 12, 6, 8, ['#2a9ac0', '#c8a020', '#b04030'][f.st]); });
+    G.fix.forEach((f, i) => {
+      const bx = 4 + i * 9, hot = f.hackN > 0, fl = Math.floor(G.t * 6) % 2;
+      rect(bx - 1, VIEW_H - 13, 8, 10, hot && fl ? '#ff40d0' : '#000', hot ? 1 : 0.7); rect(bx, VIEW_H - 12, 6, 8, hot ? (fl ? '#ffffff' : '#a01880') : ['#2a9ac0', '#c8a020', '#b04030'][f.st]);
+      if (f.st === 2 && !hot) { rect(bx + 1, VIEW_H - 11, 1, 1, '#000'); rect(bx + 4, VIEW_H - 11, 1, 1, '#000'); rect(bx + 2, VIEW_H - 9, 2, 2, '#000'); rect(bx + 1, VIEW_H - 7, 1, 1, '#000'); rect(bx + 4, VIEW_H - 7, 1, 1, '#000'); }
+      if (f.hackP > 0.01) rect(bx, VIEW_H - 4, Math.round(6 * clamp(f.hackP, 0, 1)), 1, '#ff40d0');
+    });
+    const hacked = G.fix.filter(f => f.hackN > 0);
+    if (hacked.length) {   // loud banner: something is being attacked right now
+      const top = hacked.reduce((a, b) => b.hackP > a.hackP ? b : a), txt = '! ' + fixTag(top) + ' UNDER ATTACK' + (hacked.length > 1 ? ' +' + (hacked.length - 1) : '') + ' !', fl = Math.floor(G.t * 5) % 2;
+      rect(VIEW_W / 2 - (txt.length * FONT_ADV) / 2 - 5, 39, txt.length * FONT_ADV + 10, FONT_H + 4, fl ? '#a01880' : '#400a38', 0.9);
+      drawText(txt, VIEW_W / 2, 41, '#fff', 1, 'c');
+    }
   }
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
   drawText('KILLS ' + G.kills, VIEW_W - 4, 13, '#fff', 1, 'r');
@@ -1666,24 +1725,29 @@ function drawHud() {
     drawText(o.tag, x + 2, y + 2, inf ? '#e8ff7a' : '#fff', 1, 'l', false);
   });
   if (G.msgT > 0) {
-    const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 48;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
+    const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 54;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
     rect(VIEW_W / 2 - w / 2, my, w, FONT_H * sc + 4, '#000', 0.6);
     drawText(G.msg, VIEW_W / 2, my + 2, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
-    .concat(G.fix.filter(f => f.st > 0).map(f => ({ x: f.x, y: f.y, tag: f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VLV' : f.kind === 'syn' ? 'SYN' : 'SAC', col: f.st > 1 ? '#ff8a7a' : '#ffd060', tc: '#ffd88a' })))
+    .concat(G.fix.filter(f => f.st > 0 || f.hackN > 0).map(f => ({ x: f.x, y: f.y, tag: fixTag(f), col: f.hackN > 0 ? '#ff40d0' : f.st > 1 ? '#ff5a4a' : '#ffd060', tc: f.hackN > 0 ? '#ff90e8' : f.st > 1 ? '#ff9a8a' : '#ffd88a', hot: f.hackN > 0, lost: f.st > 1, pct: f.hackN > 0 ? Math.round(f.hackP * 100) : -1 })))
     .concat(players.filter(p => p.down).map(p => ({ x: p.x, y: p.y, tag: 'P' + (p.idx + 1), col: '#7fffd0', tc: '#7fffd0' })));
   for (const o of marks) {
     const sx = o.x - cam.x, sy = o.y - cam.y;
     if (sx > 0 && sx < VIEW_W && sy > 0 && sy < VIEW_H) continue;
     const a = Math.atan2(sy - VIEW_H / 2, sx - VIEW_W / 2);
-    const ex = clamp(VIEW_W / 2 + Math.cos(a) * 400, 16, VIEW_W - 16), ey = clamp(VIEW_H / 2 + Math.sin(a) * 400, 44, VIEW_H - 30);
-    const pu = 0.6 + 0.4 * Math.sin(G.t * 6);
-    for (let i = 0; i < 4; i++) rect(ex - Math.cos(a) * i * 2 - 1, ey - Math.sin(a) * i * 2 - 1, 3, 3, o.col, pu * (1 - i * 0.2));
-    drawText(o.tag, ex, ey + 6, o.tc, 1, 'c');
+    const ex = clamp(VIEW_W / 2 + Math.cos(a) * 400, 16, VIEW_W - 16), ey = clamp(VIEW_H / 2 + Math.sin(a) * 400, 60, VIEW_H - 48);
+    const pu = 0.6 + 0.4 * Math.sin(G.t * (o.hot ? 14 : 6)), sz = o.hot ? 8 : o.lost ? 6 : 4;
+    ctx.globalAlpha = o.hot ? 1 : pu; ctx.fillStyle = '#000'; ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(a) * (sz + 2), ey + Math.sin(a) * (sz + 2)); ctx.lineTo(ex + Math.cos(a + 2.5) * (sz + 2), ey + Math.sin(a + 2.5) * (sz + 2)); ctx.lineTo(ex + Math.cos(a - 2.5) * (sz + 2), ey + Math.sin(a - 2.5) * (sz + 2)); ctx.fill();
+    ctx.fillStyle = o.hot && Math.floor(G.t * 8) % 2 ? '#ffffff' : o.col; ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(a) * sz, ey + Math.sin(a) * sz); ctx.lineTo(ex + Math.cos(a + 2.5) * sz, ey + Math.sin(a + 2.5) * sz); ctx.lineTo(ex + Math.cos(a - 2.5) * sz, ey + Math.sin(a - 2.5) * sz); ctx.fill(); ctx.globalAlpha = 1;
+    drawText((o.hot ? '! ' : '') + o.tag + (o.pct >= 0 ? ' ' + o.pct + '%' : ''), ex, ey + sz + 2, o.tc, 1, 'c');
   }
 }
+
+const fixTag = f => f.kind === 'pace' ? 'PACE' : f.kind === 'valve' ? 'VALVE' : f.kind === 'syn' ? 'SYNAPSE' : 'SAC';
 
 function drawTouch() {
   const ring = (x, y, r, col, a) => {
@@ -1916,11 +1980,11 @@ function hostSend(dt) {
   net.snapT -= dt;
   if (net.snapT > 0) return;
   net.snapT = 0.05;   // 20 snapshots / second
-  relay({ k: 'snap', lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
+  relay({ k: 'snap', lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0), r2(f.hackP), f.hackN, r1(f.allyT || 0), f.allyMax || 0]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)], r2(Math.max(0, p.pokeCd))]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
-    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0]),
+    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? u.hack.i : -1]),
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
@@ -1948,7 +2012,7 @@ function applySnap(d) {
     if (i !== me) { p.aim = a[5]; p.vx = a[7]; p.vy = a[8]; }
     else { const ex = a[0] - p.x, ey = a[1] - p.y; if (Math.hypot(ex, ey) > 50 || p.down) { p.x = a[0]; p.y = a[1]; } else { p.x += ex * 0.15; p.y += ey * 0.15; } }
   });
-  d.fx.forEach((a, i) => { const f = G.fix[i]; if (f) { f.st = a[0]; f.weakA = a[1]; f.spawnT = a[2]; f.spawnMax = a[3]; } });
+  d.fx.forEach((a, i) => { const f = G.fix[i]; if (f) { f.st = a[0]; f.weakA = a[1]; f.spawnT = a[2]; f.spawnMax = a[3]; f.hackP = a[4]; f.hackN = a[5]; f.allyT = a[6]; f.allyMax = a[7]; } });
   G.phase = d.ph; G.suffT = d.sf; G.cough = d.cg ? { t: d.cg[0], warn: d.cg[1] } : null;
   d.og.forEach((a, i) => {
     let o = organs[i];
@@ -1960,7 +2024,7 @@ function applySnap(d) {
     const type = TYPE_IDS[a[2]];
     if (!u) { u = { id: a[0], x: a[3], y: a[4], dead: false, born: G.t }; net.units.set(a[0], u); }
     u.team = a[1] ? 'v' : 'i'; u.type = type; u.r = TYPES[type].r; u.tx = a[3]; u.ty = a[4]; u.weakA = a[5]; u.flash = a[6] ? 0.1 : -1;
-    u.stuckT = a[8] ? 1 : 0;
+    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null;
     u.tailG = a[7] ? { x: a[7][0], y: a[7][1], t: a[7][2] } : null;
     seen.add(a[0]); list.push(u);
   }

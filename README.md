@@ -80,13 +80,13 @@ Win rates with the shipped tuning (60 games each):
 
 | | novice | decent | perfect |
 |---|---|---|---|
-| Brain (solo, = campaign level 1) | 0% | 35% | 97% |
-| Lungs (solo) | 15% | 53% | 73% |
-| Heart (solo) | 7% | 30% | 100% |
+| Brain (solo, = campaign level 1) | 0% | 23% | 98% |
+| Lungs (solo) | 15% | 45% | 83% |
+| Heart (solo) | 7% | 36% | 98% |
 | Classic | 8% | 35% | 88% |
-| Campaign: Brain | 3% | 33% | 97% |
-| Campaign: Lungs (with carried upgrades) | 12% | 35% | 60% |
-| Campaign: Heart (with carried upgrades) | 2% | 32% | 95% |
+| Campaign: Brain | 3% | 32% | 93% |
+| Campaign: Lungs (with carried upgrades) | 12% | 38% | 71% |
+| Campaign: Heart (with carried upgrades) | 2% | 48% | 91% |
 
 The goal is decent ~30% and perfect ~100%. Brain and Heart reach it; Lungs does not: its outcome depends more on how fast
 the ally army snowballs than on player skill, so the bots stay close together there.
