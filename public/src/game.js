@@ -23,21 +23,21 @@ const ORGANS = [
 ];
 // Levels: each is the inside of one organ. `sacs` are fixables (things to poke back into shape) placed in the world.
 const LEVELS = {
-  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.33, swarm: 0.75, dmg: 0.75, hp: 0.87, arc: 1.33 } } },
+  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.18, swarm: 0.85, dmg: 0.85, hp: 0.92, arc: 1.18 } } },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
-    tune: { solo: { spawn: 0.69, swarm: 1.45, dmg: 1.45, hp: 1.2, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
+    tune: { solo: { spawn: 0.61, swarm: 1.65, dmg: 1.65, hp: 1.29, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240],
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
-    tune: { solo: { spawn: 1, swarm: 1, dmg: 1, hp: 1, sab: 0.7, arc: 0.59 }, camp: { spawn: 0.59, swarm: 1.7, dmg: 1.7, hp: 1.3, sab: 0.53, arc: 0.53 } },
+    tune: { solo: { spawn: 0.8, swarm: 1.25, dmg: 1.25, hp: 1.12, sab: 0.59, arc: 0.48 }, camp: { spawn: 0.53, swarm: 1.9, dmg: 1.9, hp: 1.38, sab: 0.48, arc: 0.48 } },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
-    tune: { solo: { spawn: 0.74, swarm: 1.35, dmg: 1.35, hp: 1.16, sab: 0.51, arc: 0.51 }, camp: { spawn: 0.41, swarm: 2.45, dmg: 2.45, hp: 1.57, sab: 0.41, arc: 0.41 } },
+    tune: { solo: { spawn: 0.69, swarm: 1.45, dmg: 1.45, hp: 1.2, sab: 0.49, arc: 0.49 }, camp: { spawn: 0.4, swarm: 2.5, dmg: 2.5, hp: 1.58, sab: 0.4, arc: 0.4 } },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
 };
 const FIXNAMES = { syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
@@ -376,7 +376,7 @@ function addUnit(team, type, x, y) {
   const T = TYPES[type], hpm = team === 'v' ? (1 + G.t / 300) * ease('hp') : 1;
   const u = { id: G.nextId++, team, type, x, y, vx: 0, vy: 0, r: T.r, hp: T.hp * hpm, maxHp: T.hp * hpm,
     speed: T.speed * rand(0.9, 1.1), dmg: T.dmg, arc: T.arc, weakA: rand(0, 6.28),
-    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(3, 9) : rand(1.5, 5), tail: null,
+    weakS: rand(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1), atkCd: rand(0, 0.5), born: G.t, stuckT: 0, slimeImm: 0, flash: 0, cvT: 0, convCd: team === 'v' ? rand(6, 18) : rand(1.5, 5), tail: null,
     tgt: null, think: rand(0, 0.3), dead: false, hitCd: 0 };
   G.units.push(u);
   return u;
@@ -428,7 +428,7 @@ function convert(u) {
     u.team = 'v';
     burst(u.x, u.y, '#9ae05a', 14, 70); sfx('inf', 300, 0.18, 'sawtooth', 0.03, -200);
   }
-  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = u.team === 'v' ? rand(7, 10) : rand(4, 6); u.tail = null;
+  u.hp = u.maxHp * 0.7; u.cvT = 1.2; u.flash = 0.25; u.tgt = null; u.think = 0; u.convCd = u.team === 'v' ? rand(14, 20) : rand(4, 6); u.tail = null;
 }
 function convertOrgan(o) {
   o.team = o.team === 'i' ? 'v' : 'i';
@@ -1072,7 +1072,7 @@ function update(dt) {
     u.convCd -= dt;
     if (!u.tail && (u.convCd <= 0 || u.team === 'v')) {
       const t = lashTarget(u, u.convCd > 0);
-      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = u.team === 'v' ? rand(9, 13) : rand(5, 8); }   // viruses wait longer than allies between lashes
+      if (t) { u.tail = { ref: t, t: 0, hit: false }; u.convCd = u.team === 'v' ? rand(18, 26) : rand(5, 8); }   // viruses wait much longer than allies between lashes
     }
     if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
     if (u.stuckT > 0) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime
