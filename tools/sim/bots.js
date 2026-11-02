@@ -31,11 +31,11 @@ function makeBot(name, seed, extra) {
     const P = d.P, G = d.G, reach = d.reach(P), t = G.t;
     const viruses = G.units.filter(u => u.team === 'v' && !u.dead);
     let hx = 0, hy = 0;   // hazard avoidance
-    for (const b of G.beams) {
+    for (const b of G.beams.concat(G.bolts || [])) {   // fever rays, arcs and lightning all work the same: a lane to stay out of
       if (!noticed(b)) continue;
       const dx = P.x - b.x, dy = P.y - b.y, ca = Math.cos(b.a), sa = Math.sin(b.a);
       const along = dx * ca + dy * sa, perp = -dx * sa + dy * ca;
-      if (along > -18 && along < b.len + 18 && Math.abs(perp) < b.w / 2 + 22) { const sgn = perp >= 0 ? 1 : -1; hx += -sa * sgn * 3; hy += ca * sgn * 3; }
+      if (along > -18 && along < b.len + 18 && Math.abs(perp) < (b.w || 14) / 2 + 22) { const sgn = perp >= 0 ? 1 : -1; hx += -sa * sgn * 3; hy += ca * sgn * 3; }
     }
     for (const sl of G.slimes) {
       if (!noticed(sl)) continue;

@@ -29,12 +29,12 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
 - **Classic** - defend five organs for 6 minutes.
 - **Brain** (5 minutes) - seven synapses linked by neuron lines. Saboteurs jam them (lit -> dim -> dark); poke them
   back. The level is **dark**: only you, your allies and lit synapses give light, so dark synapses leave corners where
-  viruses hide. Sick synapses discharge **lightning along the neuron lines** (blue striped lanes warn first, stay off
-  the line) and breed **spark** enemies. Phase 2 (1:30) is darker and faster, phase 3 (3:20) adds storms that fire along
-  several lines at once. The darkness follows the **signal** bar (average synapse health: lit 100%, dim 50%, dark 0%), so
-  a failing signal visibly darkens the level. The red tick on the bar is the 15% line: stay below it for 25 seconds (15
-  in the other levels) and the brain goes dark and you lose. This is the first campaign level, so it is deliberately
-  gentler: slower spawns, weaker viruses and arcs, a longer grace period, and a few on-screen tips at the start.
+  viruses hide. Active (lit) synapses regularly **spark lightning** (a faint line charges for a moment, then the bolt
+  strikes) that hurts viruses and you if you stand in its path, so a lit synapse is both your light and your artillery.
+  Sick synapses stop sparking and breed **spark** enemies instead. Phase 2 (1:30) is darker, phase 3 (3:20) makes the
+  synapses crackle much faster. The darkness follows the **signal** bar (average synapse health: lit 100%, dim 50%, dark
+  0%). The red tick on the bar is the 15% line: stay below it for 25 seconds (15 in the other levels) and the brain goes
+  dark and you lose. This is the first campaign level, so it has a longer grace period and a few on-screen tips.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
   weak spot to repair one step (repairing is the player's job; allies hunt saboteurs and fight instead). Fewer open sacs means less oxygen: you move slower and shake off
@@ -80,13 +80,13 @@ Win rates with the shipped tuning (60 games each):
 
 | | novice | decent | perfect |
 |---|---|---|---|
-| Brain (solo, = campaign level 1) | 0% | 40% | 98% |
+| Brain (solo, = campaign level 1) | 3% | 28% | 97% |
 | Lungs (solo) | 27% | 57% | 78% |
 | Heart (solo) | 0% | 30% | 100% |
 | Classic | 25% | 50% | 82% |
-| Campaign: Brain | 3% | 30% | 100% |
-| Campaign: Lungs (with carried upgrades) | 22% | 37% | 50% |
-| Campaign: Heart (with carried upgrades) | 7% | 30% | 97% |
+| Campaign: Brain | 3% | 28% | 97% |
+| Campaign: Lungs (with carried upgrades) | 22% | 50% | 50% |
+| Campaign: Heart (with carried upgrades) | 7% | 28% | 90% |
 
 The goal is decent ~30% and perfect ~100%. Brain and Heart reach it; Lungs does not: its outcome depends more on how fast
 the ally army snowballs than on player skill, so the bots stay close together there.

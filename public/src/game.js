@@ -24,9 +24,9 @@ const ORGANS = [
 // Levels: each is the inside of one organ. `sacs` are fixables (things to poke back into shape) placed in the world.
 const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.33, swarm: 0.75, dmg: 0.75, hp: 0.87, arc: 1.33 } } },
-  brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES, STAY OFF THE LINES',
-    txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS! ARCS SPEED UP', p3: 'STORM! STAY OFF THE LINES' },
-    tune: { solo: { spawn: 0.8, swarm: 1.25, dmg: 1.25, hp: 1.12, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
+  brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
+    txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
+    tune: { solo: { spawn: 0.69, swarm: 1.45, dmg: 1.45, hp: 1.2, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240],
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
@@ -326,7 +326,7 @@ const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, 
 
 function newGame(co) {
   coop = !!co;
-  G = { fix: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
+  G = { fix: [], bolts: [], beat: 0, flowA: 0, phase: 1, suffT: 0, sabT: 14, mucT: 12, coughT: 20, cough: null, lowWarn: false, slimes: [], globs: [], beams: [], pills: [], pillT: rand(12, 20), vacuumT: 0, tips: [], t: 0, kills: 0, conv: 0, units: [], projs: [], gems: [], parts: [], nextId: 1,
         spawnT: 2, nextSwarm: 40, msg: '', msgT: 0, shake: 0, overT: 0, result: '', reason: '' };
   // team-wide progression: one level, one XP bar, one set of upgrades shared by everybody
   S = { level: 1, xp: 0, next: 6, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
@@ -807,34 +807,42 @@ function fixStep(dt, alive) {
   else G.suffT = Math.max(0, G.suffT - dt * 2);
 }
 
-// Brain: sick synapses discharge lightning along the neuron lines (telegraphed lanes) and breed sparks. Dark synapses
-// stop lighting their area, so the level goes dark; phase 3 adds storms that fire along several lines at once.
+// Brain: lit (active) synapses regularly spark lightning that hurts viruses and anyone else it touches (you, if you stand
+// too close). Sick synapses stop sparking and breed spark enemies instead. Dark synapses stop lighting their area, so the
+// level goes dark; phase 3 makes the active synapses crackle much faster.
+const BOLT = { warn: 0.4, fire: 0.18, reach: 125 };
 function brainStep(dt, alive, phase) {
-  const link = f => { const e = G.edges.filter(([a, b]) => a === f.i || b === f.i); if (!e.length) return null; const [a, b] = e[Math.floor(Math.random() * e.length)]; return G.fix[a === f.i ? b : a]; };
-  const arc = (f, o, warn) => G.beams.push({ x: f.x, y: f.y, a: Math.atan2(o.y - f.y, o.x - f.x), len: dist(f, o), w: 12, t: 0, warn, fire: 0.7, fired: false, c: 1 });
   for (const f of G.fix) {
-    if (f.st === 0) { f.spawnMax = 0; continue; }
-    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc');
-    f.rayT = (f.rayT == null ? rand(3, 8) : f.rayT) - dt;
-    if (f.rayT <= 0) {
-      f.rayT = (f.st === 2 ? 7 : 12) * fast * rand(0.85, 1.15);
-      const o = link(f);
-      if (o && G.beams.length < 8) {
-        arc(f, o, phase >= 2 ? 1.1 : 1.4); sfx('charge', 120, 1.2, 'sawtooth', 0.03, 300);
-        if (!G.rayWarned) { G.rayWarned = true; say('ARCS RUN ALONG THE NEURON LINES'); }
+    if (f.st > 0) {
+      f.spawnMax = 0;
+      const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc');
+      sickSpawn(f, dt, fast, 'spark');
+      continue;
+    }
+    f.spawnMax = 0;
+    f.boltT = (f.boltT == null ? rand(1, 4) : f.boltT) - dt;
+    if (f.boltT <= 0) {
+      f.boltT = rand(2.6, 4.4) * (phase >= 2 ? 0.85 : 1) * (phase >= 3 ? 0.6 : 1);
+      let a = rand(0, 6.283), best = null, bd = BOLT.reach + 15;   // it likes to strike a virus within reach, otherwise any direction
+      for (const u of G.units) if (u.team === 'v' && !u.dead) { const d = dist(f, u); if (d < bd) { bd = d; best = u; } }
+      if (best && Math.random() < 0.75) a = Math.atan2(best.y - f.y, best.x - f.x);
+      if (G.bolts.length < 14) {
+        G.bolts.push({ x: f.x, y: f.y, a, len: BOLT.reach * rand(0.8, 1), t: 0, warn: BOLT.warn, fire: BOLT.fire, fired: false, seed: Math.floor(Math.random() * 1000) });
+        if (!G.boltWarned) { G.boltWarned = true; say('LIT SYNAPSES SPARK. IT HURTS VIRUSES AND YOU'); }
       }
     }
-    sickSpawn(f, dt, fast, 'spark');
   }
-  if (phase >= 3) {   // storm: several lines light up at once
-    G.coughT -= dt;
-    if (G.coughT <= 0 && G.edges.length) {
-      G.coughT = rand(22, 30);
-      const pick = G.edges.slice().sort(() => Math.random() - 0.5).slice(0, 3);
-      for (const [a, b] of pick) arc(G.fix[a], G.fix[b], 1.6);
-      say('STORM! GET OFF THE LINES'); sfx('charge', 100, 1.6, 'sawtooth', 0.03, 260);
-    }
+  for (const b of G.bolts) {
+    b.t += dt;
+    if (b.fired || b.t < b.warn) continue;
+    b.fired = true; sfx('bolt', 700, 0.12, 'sawtooth', 0.03, -400);
+    const ca = Math.cos(b.a), sa = Math.sin(b.a);
+    const hit = (x, y, r) => { const dx = x - b.x, dy = y - b.y, along = dx * ca + dy * sa; return along >= 0 && along <= b.len && Math.abs(-dx * sa + dy * ca) < 7 + r; };
+    for (const u of G.units) if (u.team === 'v' && !u.dead && hit(u.x, u.y, u.r)) { damageUnit(u, 16); burst(u.x, u.y, '#bfe0ff', 5, 50); }
+    for (const p of alive) if (hit(p.x, p.y, 5 * S.scale)) { p.infection += 11 * ease('dmg') * (p.fx.shield > 0 ? 0.5 : 1); p.hitT = 0; p.flash = 0.15; G.shake = Math.max(G.shake, 2); tip(p.x, p.y - 14, 'ZAP!', '#bfe0ff'); }
+    for (let k = 0; k < 4; k++) { const d = rand(6, b.len); G.parts.push({ x: b.x + ca * d, y: b.y + sa * d, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.3, max: 0.3, col: Math.random() < 0.5 ? '#a0c8ff' : '#e8f4ff', sz: 2 }); }
   }
+  G.bolts = G.bolts.filter(b => b.t < b.warn + b.fire);
 }
 
 function lungStep(dt, alive, phase) {
@@ -1254,16 +1262,38 @@ function drawTail(p) {   // short wagging tail; lashes out to the weak spot when
   drawLash(bx, by, bx + Math.cos(a) * len, by + Math.sin(a) * len, 2, col, '#12204a', null, p.idx);
 }
 
+// lightning from lit synapses: a faint charging line, then a jagged bright bolt
+function drawBolts() {
+  for (const b of G.bolts) {
+    const ca = Math.cos(b.a), sa = Math.sin(b.a), firing = b.t >= b.warn, n = Math.max(3, Math.floor(b.len / 9));
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const k = i / n, h = Math.sin(b.seed * 12.9898 + i * 78.233) * 43758.5453, off = (h - Math.floor(h) - 0.5) * 14 * Math.sin(k * Math.PI) * (firing ? 1 : 0);
+      pts.push([b.x + ca * b.len * k - sa * off - cam.x + shx, b.y + sa * b.len * k + ca * off - cam.y + shy]);
+    }
+    const path = () => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
+    if (!firing) {   // charging: the line flickers in
+      ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.15 + 0.35 * (b.t / b.warn) * (0.6 + 0.4 * Math.sin(b.t * 40)); path(); ctx.stroke();
+    } else {
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#4a6aff'; ctx.lineWidth = 5; ctx.globalAlpha = 0.35; path(); ctx.stroke();
+      ctx.strokeStyle = '#bfe0ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.9; path(); ctx.stroke();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.globalAlpha = 1; path(); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 // brain: the level is dark; only players, allies and lit synapses give light. Dark synapses mean dark corners where
 // viruses hide. Lightning flashes briefly light everything.
 let darkC = null;
 function drawDarkness() {
   if (!darkC) darkC = document.createElement('canvas');
   if (darkC.width !== VIEW_W || darkC.height !== VIEW_H) { darkC.width = VIEW_W; darkC.height = VIEW_H; }
-  const g = darkC.getContext('2d'), flash = G.beams.some(b => b.c && b.t >= b.warn && b.t < b.warn + 0.12);
+  const g = darkC.getContext('2d'), flash = G.bolts.some(b => b.t >= b.warn && b.t < b.warn + 0.1);
   g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, VIEW_W, VIEW_H);
   const sig = oxy(), dark = clamp(0.28 + 0.55 * (1 - sig) + 0.04 * (G.phase - 1), 0.28, 0.9);   // the lower the signal, the darker the level
-  g.fillStyle = 'rgba(4,2,20,' + (flash ? Math.min(dark, 0.3) : dark) + ')'; g.fillRect(0, 0, VIEW_W, VIEW_H);
+  g.fillStyle = 'rgba(4,2,20,' + (flash ? dark * 0.8 : dark) + ')'; g.fillRect(0, 0, VIEW_W, VIEW_H);
   g.globalCompositeOperation = 'destination-out'; g.fillStyle = 'rgba(0,0,0,0.3)';
   const light = (x, y, r) => {
     x = Math.round(x - cam.x + shx); y = Math.round(y - cam.y + shy);
@@ -1499,7 +1529,7 @@ function render() {
       if (x > 0 && x < VIEW_W && y > 0 && y < VIEW_H) rect(x, y, 2, 2, i % 3 ? '#ff8a98' : '#ffd0d6', 0.5);
     }
   }
-  if (lvKey === 'brain') drawDarkness();
+  if (lvKey === 'brain') { drawDarkness(); drawBolts(); }
   if (lvKey === 'lung') {
     const br = breathY();
     if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
@@ -1845,7 +1875,7 @@ function hostSend(dt) {
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
     sl: G.slimes.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life)]), gl: G.globs.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur)]),
-    bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
+    bm: G.beams.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r1(b.w), r2(b.t), r1(b.warn), r1(b.fire), b.c || 0]), bo: G.bolts.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed]), pi: G.pills.map(x => [r1(x.x), r1(x.y), r1(x.life)]), vac: r1(G.vacuumT), ev: evq });
   evq = [];
 }
 
@@ -1891,6 +1921,7 @@ function applySnap(d) {
   G.gems = d.gm.map((a, i) => ({ x: a[0], y: a[1], ph: i * 0.7 }));
   G.slimes = d.sl.map(a => ({ x: a[0], y: a[1], r: a[2], life: a[3] }));
   G.globs = d.gl.map(a => ({ sx: a[0], sy: a[1], tx: a[2], ty: a[3], t: a[4], dur: a[5] }));
+  G.bolts = (d.bo || []).map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], t: a[4], seed: a[5], warn: BOLT.warn, fire: BOLT.fire }));
   G.beams = d.bm.map(a => ({ x: a[0], y: a[1], a: a[2], len: a[3], w: a[4], t: a[5], warn: a[6], fire: a[7], c: a[8] }));
   G.pills = d.pi.map(a => ({ x: a[0], y: a[1], life: a[2] }));
   G.vacuumT = d.vac;
@@ -1920,6 +1951,7 @@ function guestTick(dt) {
   for (const g of G.globs) g.t += dt;
   if (G.cough) G.cough.t += dt;
   for (const b of G.beams) b.t += dt;
+  for (const b of G.bolts) b.t += dt;
   for (const p of G.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt; }
   G.parts = G.parts.filter(p => p.life > 0);
   G.shake = Math.max(0, G.shake - 20 * dt);
