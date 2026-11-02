@@ -168,6 +168,8 @@ function makeSac(st) {
 
   SPR.virus.saboteur = makeBlob({ r: 5, body: '#e050c0', light: '#ff98e8', dark: '#a02890', outline: '#4a0c40', spikeColor: '#ffd0f8', spikes: 5, spikeLen: 3, face: true });
 
+  SPR.virus.slimeling = makeBlob({ r: 4, body: '#8fdc4a', light: '#c8f58a', dark: '#4f9a24', outline: '#2f6a16', face: true });
+
   SPR.player = makeFighter('#4aa8ff');
   SPR.ally = makeFighter('#3fd6a6');
   SPR.player2 = makeFighter('#ffa030');

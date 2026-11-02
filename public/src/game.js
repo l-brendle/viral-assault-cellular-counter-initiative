@@ -9,6 +9,7 @@ const TYPES = {
   basic:  { r: 6, hp: 20, speed: 34, dmg: 4,  arc: 0.55, xp: 1, ally: 16, col: '#6ccf3c' },
   runner: { r: 4, hp: 10, speed: 62, dmg: 3,  arc: 0.65, xp: 1, ally: 11, col: '#f0b030' },
   brute:  { r: 9, hp: 70, speed: 22, dmg: 12, arc: 0.45, xp: 4, ally: 24, col: '#a050d8' },
+  slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
   saboteur: { r: 5, hp: 14, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
@@ -717,13 +718,13 @@ function breathY() {
 const TRACHEA = { x: 600, y: 30 };
 function lungStep(dt, alive) {
   if (!G.fix.length) return;
-  const push = 34 * breathY();
+  const push = 55 * breathY();
   for (const p of alive) if (p.stuckT <= 0) p.y = clamp(p.y + push * dt, 10, CFG.H - 10);
   for (const u of G.units) if (u.stuckT <= 0) u.y = clamp(u.y + push * 0.7 * dt, 6, CFG.H - 6);
   for (const f of G.fix) { f.weakA += f.weakS * dt; f.cd -= dt; }
   const O = oxy(), phase = G.t > 200 ? 3 : G.t > 90 ? 2 : 1;
   if (phase !== G.phase) {
-    G.phase = phase; say(phase === 2 ? 'MUCUS FLOOD! STAY OFF THE SLIME' : 'COUGHING FITS! BRACE YOURSELF'); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200);
+    G.phase = phase; say(phase === 2 ? 'SICK SACS SPIT FASTER! AVOID SLIME' : 'COUGHING FITS! BRACE YOURSELF'); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200);
   }
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
@@ -732,18 +733,26 @@ function lungStep(dt, alive) {
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
     if (G.t < 60 || Math.random() < 0.3) say('SABOTEURS! THEY CLOG THE AIR SACS');
   }
-  if (phase >= 2) {   // mucus dripping from the airways
-    G.mucT -= dt;
-    if (G.mucT <= 0) {
-      G.mucT = Math.max(5, 11 - G.t / 60) * rand(0.8, 1.2);
-      const n = 1 + (phase >= 3 ? 1 : 0) + (players.length > 1 ? 1 : 0);
-      for (let i = 0; i < n; i++) {
+  // sick sacs behave like the infected lungs of the classic level: they lob slime and breed little slime enemies
+  for (const f of G.fix) {
+    if (f.st === 0) { f.spawnMax = 0; continue; }
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    f.spitT = (f.spitT == null ? rand(2, 6) : f.spitT) - dt;
+    if (f.spitT <= 0) {
+      f.spitT = (f.st === 2 ? 6.5 : 11) * fast * rand(0.8, 1.2);
+      if (G.globs.length < 8) {
         let tx, ty;
-        if (Math.random() < 0.55) { const p = alive[Math.floor(Math.random() * alive.length)]; tx = p.x + rand(-40, 40); ty = p.y + rand(-40, 40); }
-        else { const f = G.fix[Math.floor(Math.random() * G.fix.length)]; tx = f.x + rand(-30, 30); ty = f.y + rand(-30, 30); }
-        G.globs.push({ sx: TRACHEA.x, sy: TRACHEA.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 1.2 + rand(0, 0.4) });
+        if (Math.random() < 0.5) { const p = alive[Math.floor(Math.random() * alive.length)]; tx = p.x + rand(-40, 40); ty = p.y + rand(-40, 40); }
+        else { const a = rand(0, 6.283), d = rand(60, 200); tx = f.x + Math.cos(a) * d; ty = f.y + Math.sin(a) * d; }
+        G.globs.push({ sx: f.x, sy: f.y, tx: clamp(tx, 20, CFG.W - 20), ty: clamp(ty, 20, CFG.H - 20), t: 0, dur: 1 + rand(0, 0.3) });
+        burst(f.x, f.y, '#9ae05a', 8, 50); sfx('spit', 200, 0.2, 'sawtooth', 0.03, -80);
       }
-      sfx('spit', 200, 0.2, 'sawtooth', 0.03, -80);
+    }
+    f.spawnMax = (f.st === 2 ? 8 : 14) * fast;
+    f.spawnT = (f.spawnT == null ? rand(3, f.spawnMax) : f.spawnT) - dt;
+    if (f.spawnT <= 0) {
+      f.spawnT = f.spawnMax;
+      if (count('v') < CFG.MAX_VIRUS) { const a = rand(0, 6.283); addUnit('v', 'slimeling', f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 20); burst(f.x, f.y, '#8fdc4a', 8, 50); }
     }
   }
   if (phase >= 3 && !G.cough) {   // coughs: a telegraphed shockwave from the trachea
@@ -1153,7 +1162,7 @@ function render() {
     for (let y = 4; y < 56; y += 8) rect(tx - 9, ty + y, 18, 2, '#5a2c46');
     const br = breathY();
     for (const f of G.fix) {
-      const img = SPR.sac[f.st], k = 1 - 0.1 * br, w = Math.round(img.width * k), h = Math.round(img.height * k);
+      const img = SPR.sac[f.st], k = 1 - 0.18 * br, w = Math.round(img.width * k), h = Math.round(img.height * k);
       if (f.st === 0) {
         const pu = 0.5 + 0.5 * Math.sin(G.t * 2 + f.i);
         ctx.strokeStyle = 'rgba(120,230,255,' + (0.2 + 0.15 * pu) + ')'; ctx.lineWidth = 1;
@@ -1164,6 +1173,10 @@ function render() {
       if (f.st > 0) {
         weakGlow(f.x, f.y, f.r, f.weakA, '#fff6a0', true, nearSpot(f));
         if (nearSpot(f)) bodyRing(f.x, f.y, f.r + 5);
+      }
+      if (f.st > 0 && f.spawnMax > 0) {   // when the next slime enemy pops out
+        const bx2 = Math.round(f.x - 12 - cam.x + shx), by2 = Math.round(f.y + 25 - cam.y + shy);
+        rect(bx2 - 1, by2 - 1, 26, 4, '#000', 0.7); rect(bx2, by2, Math.round(24 * clamp(1 - f.spawnT / f.spawnMax, 0, 1)), 2, '#9ae05a');
       }
       drawText(['OPEN', 'CLOGGED', 'COLLAPSED'][f.st], f.x - cam.x + shx, f.y + 17 - cam.y + shy, ['#7fe8ff', '#ffd060', '#ff8a7a'][f.st], 1, 'c');
     }
@@ -1303,9 +1316,14 @@ function render() {
 
   if (G.fix.length) {
     const br = breathY();
-    if (Math.abs(br) > 0.05) {   // air streaks show which way the breath pushes
-      const dir = Math.sign(br);
-      for (let i = 0; i < 30; i++) rect((i * 47 + 13) % VIEW_W, (((i * 61 + G.t * 90 * dir) % VIEW_H) + VIEW_H) % VIEW_H, 1, 4, '#ffe8f4', 0.28 * Math.abs(br));
+    if (Math.abs(br) > 0.03) {   // big air current: tinted screen, sweeping bands and long streaks all moving the way the breath pushes
+      const dir = Math.sign(br), a = Math.abs(br);
+      rect(0, 0, VIEW_W, VIEW_H, dir < 0 ? '#9ad8ff' : '#ff9ac0', 0.1 * a);
+      for (let i = 0; i < 3; i++) rect(0, (((i * 90 + G.t * 150 * dir) % (VIEW_H + 60)) + VIEW_H + 60) % (VIEW_H + 60) - 30, VIEW_W, 26, '#ffffff', 0.07 * a);
+      for (let i = 0; i < 70; i++) {
+        const len = 6 + (i * 7) % 10, y = (((i * 61 + G.t * (170 + (i % 4) * 40) * dir) % VIEW_H) + VIEW_H) % VIEW_H;
+        rect((i * 47 + 13) % VIEW_W, y, 1 + (i % 3 === 0 ? 1 : 0), len, '#ffffff', 0.5 * a);
+      }
     }
     if (G.cough) {   // sucked-in ring while charging, then the shockwave
       const c = G.cough, cx = TRACHEA.x - cam.x + shx, cy = TRACHEA.y - cam.y + shy, firing = c.t >= c.warn;
@@ -1536,7 +1554,7 @@ function drawOver() {
 
 // ---------------------------------------------------------------- online
 // Host-authoritative: the host simulates everything. The guest sends its input and renders snapshots.
-const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur'];
+const TYPE_IDS = ['basic', 'runner', 'brute', 'saboteur', 'slimeling'];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 
 // Transport: WebRTC data channel via PeerJS (public signalling server), so the site can be fully static.
@@ -1618,7 +1636,7 @@ function hostSend(dt) {
   net.snapT -= dt;
   if (net.snapT > 0) return;
   net.snapT = 0.05;   // 20 snapshots / second
-  relay({ k: 'snap', lv: lvKey, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
+  relay({ k: 'snap', lv: lvKey, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0)]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)]]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
@@ -1648,7 +1666,7 @@ function applySnap(d) {
     if (i !== me) { p.aim = a[5]; p.vx = a[7]; p.vy = a[8]; }
     else { const ex = a[0] - p.x, ey = a[1] - p.y; if (Math.hypot(ex, ey) > 50 || p.down) { p.x = a[0]; p.y = a[1]; } else { p.x += ex * 0.15; p.y += ey * 0.15; } }
   });
-  d.fx.forEach((a, i) => { const f = G.fix[i]; if (f) { f.st = a[0]; f.weakA = a[1]; } });
+  d.fx.forEach((a, i) => { const f = G.fix[i]; if (f) { f.st = a[0]; f.weakA = a[1]; f.spawnT = a[2]; f.spawnMax = a[3]; } });
   G.phase = d.ph; G.suffT = d.sf; G.cough = d.cg ? { t: d.cg[0], warn: d.cg[1] } : null;
   d.og.forEach((a, i) => {
     let o = organs[i];
