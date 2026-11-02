@@ -12,7 +12,7 @@ const TYPES = {
   slimeling: { r: 4, hp: 8, speed: 40, dmg: 2, arc: 0.55, xp: 1, ally: 10, col: '#8fdc4a' },   // lung level: spawned by sick air sacs
   ember: { r: 4, hp: 8, speed: 46, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#ff8a30' },   // heart level: spawned by sick valves
   spark: { r: 4, hp: 8, speed: 52, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#7aa8ff' },   // brain level: spawned by sick synapses
-  saboteur: { r: 5, hp: 14, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
+  saboteur: { r: 5, hp: 30, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
   { name: 'BRAIN', tag: 'BRN', x: 600,  y: 150 },
@@ -785,7 +785,7 @@ function sickSpawn(f, dt, fast, type) {
 }
 
 const ALLY_T = 18;   // seconds between the allies a healthy objective produces
-const HACK_T = 3.5, HACK_R = 34;   // seconds one saboteur needs to flip a fixable one step, and how close it must be to stay linked
+const HACK_T = 4.5, HACK_R = 34;   // seconds one saboteur needs to flip a fixable one step, and how close it must be to stay linked
 function fixStep(dt, alive) {
   if (!G.fix.length) return;
   const T = lvl().txt, phase = phaseNow(), O = oxy();
