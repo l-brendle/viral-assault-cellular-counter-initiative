@@ -114,7 +114,7 @@ let uiSfx = false;   // set while the Man Flu scene runs, so its own sounds are 
 function mkAudio() { try { return new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' }); } catch (e) { return null; } }
 function initAudio() {
   if (!AC) { AC = mkAudio(); AU = mkAudio(); }
-  for (const c of [AC, AU]) if (c && c.state !== 'running') c.resume();
+  for (const c of [AC, AU]) if (c && c.state !== 'running') c.resume().catch(() => {});
 }
 const gameHeld = () => state === 'paused' || state === 'levelup' || state === 'over' || !!G.cine;
 let acHeld = false;
@@ -128,7 +128,6 @@ function voice(ctx, f, d, type, vol, slide, track) {
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d);
-  if (!track) { AD.au++; o.addEventListener('ended', () => AD.au--); }
   if (track) { const v = { o, g, t, f, d, type, vol, slide }; live.push(v); o.onended = () => { live = live.filter(x => x !== v); }; }
 }
 function syncAudio() {
@@ -137,7 +136,6 @@ function syncAudio() {
   if (h === acHeld) return;
   acHeld = h;
   const now = AC.currentTime;
-  if (h) AD.holdT = performance.now();
   if (h) {
     for (const v of live) {
       const e = now - v.t, r = v.d - e;
@@ -148,47 +146,22 @@ function syncAudio() {
         rest.push({ f: f2, d: r, type: v.type, vol: v.vol * Math.pow(0.0001 / v.vol, k), slide: v.slide ? (v.f + v.slide) - f2 : 0 });
       }
     }
-    AD.held++; AD.dropped += live.length; live = [];
+    live = [];
   } else {
-    for (const r of rest) voice(AC, r.f, r.d, r.type, r.vol, r.slide, true);
-    AD.resumed += rest.length; rest = [];
+    if (AC.state === 'running') for (const r of rest) voice(AC, r.f, r.d, r.type, r.vol, r.slide, true);
+    rest = [];
   }
-}
-// F2 shows what the audio is doing, to debug sound problems on a device
-const AD = { pipe: '-', ratio: '-', au: 0, log: [], holdT: 0, on: false, gap: 0, gapMax: 0, n: 0, held: 0, resumed: 0, dropped: 0, sfx: 0 };
-function audioDiag() {
-  const c = AC;
-  if (!AD.on || !c) return;
-  const nw = performance.now();
-  if (nw - (AD.w0 || 0) > 2000) {   // how far behind real time the audio context really is, and whether its clock keeps pace
-    try { const ts = c.getOutputTimestamp(); AD.pipe = Math.round((c.currentTime - ts.contextTime) * 1000); } catch (e) { AD.pipe = -1; }
-    if (AD.w0) AD.ratio = ((c.currentTime - AD.c0) * 1000 / (nw - AD.w0)).toFixed(2);
-    AD.w0 = nw; AD.c0 = c.currentTime;
-  }
-  if (nw < AD.flash) rect(0, 0, VIEW_W, VIEW_H, '#fff', 0.5);
-  const L = [
-    'AUDIO ' + c.state + ' T ' + c.currentTime.toFixed(2),
-    'LATENCY OUT ' + Math.round((c.outputLatency || 0) * 1000) + ' BASE ' + Math.round(c.baseLatency * 1000) + ' MS',
-    'VOICES ' + live.length + ' STORED ' + rest.length + (acHeld ? ' HELD' : ''),
-    'SFX/S ' + AD.n + ' HOLDS ' + AD.held + ' REPLAYED ' + AD.resumed + ' CUT ' + AD.dropped,
-    'FRAME MAX ' + AD.gapMax + ' MS',
-    'AU ' + (AU ? AU.state : '-') + ' LIVE ' + AD.au,
-    'PIPELINE ' + AD.pipe + ' MS  CLOCK ' + AD.ratio + 'X',
-    'F3 = BEEP + FLASH TOGETHER',
-  ].concat(AD.log);
-  L.forEach((t, i) => drawText(t, VIEW_W - 4, VIEW_H - 110 + i * 9, '#7fffd0', 1, 'r'));
 }
 function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   if (evq) evq.push(['s', key, f, d, type, vol, slide]);
   const own = UI_SFX.has(key) || uiSfx;
   const ctx = own ? AU : AC;
   if (!ctx || (!own && acHeld)) return;
+  if (ctx.state !== 'running') { ctx.resume().catch(() => {}); return; }   // the browser still mutes the page (e.g. Safari auto-play): a late sound is worse than none
   const t = ctx.currentTime;
   if (sfxT[key] && t - sfxT[key] < 0.04) return;
   sfxT[key] = t;
   voice(ctx, f, d, type, vol, slide, !own);
-  AD.sfx++;
-  if (AD.on && (acHeld || own)) { AD.log.push((own ? 'U ' : 'G ') + key + ' ' + (acHeld ? '+' + ((performance.now() - AD.holdT) / 1000).toFixed(1) + 'S HELD' : 'PLAY')); if (AD.log.length > 6) AD.log.shift(); }
 }
 
 // ---------------------------------------------------------------- input
@@ -203,8 +176,6 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   keys[k] = true;
   if (k.startsWith('arrow') || k === ' ') e.preventDefault();
-  if (k === 'f2') AD.on = !AD.on;
-  if (k === 'f3' && AC) { voice(AC, 880, 0.15, 'square', 0.05, 0, false); AD.flash = performance.now() + 150; AD.on = true; }
   initAudio(); onKey(k);
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2121,7 +2092,6 @@ function render() {
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
   if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
-  audioDiag();
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     // bright arms with a dark outline so it reads on every background; the centre dot marks the exact aim point
@@ -2675,9 +2645,6 @@ function frame(now) {
   if (state === 'play' && !isGuest() && (document.hidden || (isTouch && innerHeight > innerWidth))) state = 'paused';
   if (state !== 'play' && (touch.move || touch.aim)) touch.move = touch.aim = null;
   syncAudio();
-  AD.frames = (AD.frames || 0) + 1;
-  if (AD.frames % 60 === 0) { AD.n = AD.sfx; AD.sfx = 0; AD.gapMax = 0; }
-  AD.gapMax = Math.max(AD.gapMax, Math.round(now - (AD.prev || now))); AD.prev = now;
   if (isGuest()) guestTick(dt);
   else { if (state === 'play') update(dt); syncAudio(); hostSend(dt); }
   render();
