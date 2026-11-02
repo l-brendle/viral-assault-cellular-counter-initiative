@@ -124,11 +124,49 @@ function makeBackground() {
   return c;
 }
 
+// lung tissue: soft mauve with faint bubble rings (alveoli) and a few capillary specks
+function makeLungBackground() {
+  const S = 64, c = mk(S, S), g = c.getContext('2d');
+  px(g, 0, 0, '#4d2640', S, S);
+  for (let i = 0; i < 16; i++) {
+    const x = srand() * S, y = srand() * S, r = 4 + Math.floor(srand() * 8);
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      disc(g, Math.round(x + ox), Math.round(y + oy), r, '#552a47');
+      for (let k = 0; k < r * 7; k++) { const a = k / (r * 7) * 6.283; px(g, Math.round(x + ox + Math.cos(a) * r), Math.round(y + oy + Math.sin(a) * r), '#6c3a5c'); }
+      px(g, Math.round(x + ox - r * 0.5), Math.round(y + oy - r * 0.5), '#8c5278', 2, 1);
+    }
+  }
+  for (let i = 0; i < 40; i++) px(g, Math.floor(srand() * S), Math.floor(srand() * S), srand() < 0.5 ? '#2f6b7a' : '#3a1a32');
+  return c;
+}
+
+// air sac: a grape-like cluster. 0 = open (pink, plump), 1 = clogged (bruised, deflating), 2 = collapsed (grey-green, flat)
+function makeSac(st) {
+  const c = mk(38, 34), g = c.getContext('2d');
+  const pal = [
+    { o: '#3a0f2a', body: '#f08ab4', light: '#ffd0e4', dark: '#c05888' },
+    { o: '#2c1a38', body: '#b090c0', light: '#d8c0e8', dark: '#7a5a90' },
+    { o: '#16300e', body: '#6f8a50', light: '#a0b878', dark: '#3f5a2a' },
+  ][st];
+  const lobes = [
+    [[19, 16, 9], [8, 13, 7], [30, 13, 7], [12, 25, 7], [26, 25, 7]],
+    [[19, 18, 8], [9, 16, 6], [29, 16, 6], [13, 26, 5], [25, 26, 5]],
+    [[19, 24, 9], [10, 22, 6], [28, 22, 6], [19, 17, 4]],
+  ][st];
+  for (const [cx, cy, r] of lobes) disc(g, cx, cy, r, pal.o);
+  for (const [cx, cy, r] of lobes) disc(g, cx, cy, r - 1, pal.body);
+  for (const [cx, cy, r] of lobes) { px(g, cx - r * 0.45, cy - r * 0.55, pal.light, 2, 2); px(g, cx + r * 0.25, cy + r * 0.35, pal.dark, 3, 2); }
+  if (st) for (const [x, y] of [[14, 14], [24, 20], [18, 26], [28, 14]]) px(g, x, y + (st > 1 ? 2 : 0), '#9ae05a', 2, 2);   // slime specks
+  return c;
+}
+
 (function build() {
   // viruses: spiky blobs in three sizes
   SPR.virus.basic = makeBlob({ r: 6, body: '#6ccf3c', light: '#a8f060', dark: '#3f9a2a', outline: '#1d4a1a', spikeColor: '#e8ff7a', spikes: 8, spikeLen: 3, face: true });
   SPR.virus.runner = makeBlob({ r: 4, body: '#f0b030', light: '#ffe070', dark: '#c07a18', outline: '#5a3208', spikeColor: '#fff0a0', spikes: 6, spikeLen: 3, face: true });
   SPR.virus.brute = makeBlob({ r: 9, body: '#a050d8', light: '#d08cf8', dark: '#6a2a98', outline: '#2c1048', spikeColor: '#f0b0ff', spikes: 11, spikeLen: 4, face: true, spots: true });
+
+  SPR.virus.saboteur = makeBlob({ r: 5, body: '#e050c0', light: '#ff98e8', dark: '#a02890', outline: '#4a0c40', spikeColor: '#ffd0f8', spikes: 5, spikeLen: 3, face: true });
 
   SPR.player = makeFighter('#4aa8ff');
   SPR.ally = makeFighter('#3fd6a6');
@@ -172,6 +210,8 @@ function makeBackground() {
     '..oooooooo..',
   ], { o: '#4a1020', r: '#ff5a6a', w: '#ffffff', h: '#ffc0c8' });
   SPR.bg = makeBackground();
+  SPR.bgLung = makeLungBackground();
+  SPR.sac = [0, 1, 2].map(makeSac);
 })();
 
 // 3x5 bitmap font

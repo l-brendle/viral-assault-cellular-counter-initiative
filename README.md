@@ -21,6 +21,17 @@ per level), leaving you smaller until you grow back.
 
 Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
+## Levels
+Pick the level on the title screen (**L** or the LEVEL button). Online co-op uses the host's level.
+- **Classic** - defend five organs for 6 minutes.
+- **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
+  **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
+  weak spot to repair one step (allies help too). Fewer open sacs means less oxygen: you move slower and shake off
+  infection less. If oxygen stays near zero for 15 seconds the lungs collapse and you lose.
+  The lungs also **breathe**: inhale pulls everything up toward the trachea, exhale pushes it back down.
+  It escalates: phase 2 (1:30) mucus drips from the trachea as sticky slime, phase 3 (3:20) coughs fire a
+  telegraphed shockwave that throws everyone away from the trachea.
+
 ## Infected organs fight back
 - **Lungs** lob **slime** onto the map (a marker shows where it lands). Anything that touches a puddle - you, allies or
   viruses - is frozen in place for 3 seconds.
