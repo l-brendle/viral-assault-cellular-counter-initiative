@@ -128,6 +128,7 @@ function voice(ctx, f, d, type, vol, slide, track) {
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d);
+  if (!track) { AD.au++; o.addEventListener('ended', () => AD.au--); }
   if (track) { const v = { o, g, t, f, d, type, vol, slide }; live.push(v); o.onended = () => { live = live.filter(x => x !== v); }; }
 }
 function syncAudio() {
@@ -136,6 +137,7 @@ function syncAudio() {
   if (h === acHeld) return;
   acHeld = h;
   const now = AC.currentTime;
+  if (h) AD.holdT = performance.now();
   if (h) {
     for (const v of live) {
       const e = now - v.t, r = v.d - e;
@@ -153,18 +155,28 @@ function syncAudio() {
   }
 }
 // F2 shows what the audio is doing, to debug sound problems on a device
-const AD = { on: false, gap: 0, gapMax: 0, n: 0, held: 0, resumed: 0, dropped: 0, sfx: 0 };
+const AD = { pipe: '-', ratio: '-', au: 0, log: [], holdT: 0, on: false, gap: 0, gapMax: 0, n: 0, held: 0, resumed: 0, dropped: 0, sfx: 0 };
 function audioDiag() {
   const c = AC;
   if (!AD.on || !c) return;
+  const nw = performance.now();
+  if (nw - (AD.w0 || 0) > 2000) {   // how far behind real time the audio context really is, and whether its clock keeps pace
+    try { const ts = c.getOutputTimestamp(); AD.pipe = Math.round((c.currentTime - ts.contextTime) * 1000); } catch (e) { AD.pipe = -1; }
+    if (AD.w0) AD.ratio = ((c.currentTime - AD.c0) * 1000 / (nw - AD.w0)).toFixed(2);
+    AD.w0 = nw; AD.c0 = c.currentTime;
+  }
+  if (nw < AD.flash) rect(0, 0, VIEW_W, VIEW_H, '#fff', 0.5);
   const L = [
     'AUDIO ' + c.state + ' T ' + c.currentTime.toFixed(2),
     'LATENCY OUT ' + Math.round((c.outputLatency || 0) * 1000) + ' BASE ' + Math.round(c.baseLatency * 1000) + ' MS',
     'VOICES ' + live.length + ' STORED ' + rest.length + (acHeld ? ' HELD' : ''),
     'SFX/S ' + AD.n + ' HOLDS ' + AD.held + ' REPLAYED ' + AD.resumed + ' CUT ' + AD.dropped,
     'FRAME MAX ' + AD.gapMax + ' MS',
-  ];
-  L.forEach((t, i) => drawText(t, VIEW_W - 4, 60 + i * 9, '#7fffd0', 1, 'r'));
+    'AU ' + (AU ? AU.state : '-') + ' LIVE ' + AD.au,
+    'PIPELINE ' + AD.pipe + ' MS  CLOCK ' + AD.ratio + 'X',
+    'F3 = BEEP + FLASH TOGETHER',
+  ].concat(AD.log);
+  L.forEach((t, i) => drawText(t, VIEW_W - 4, VIEW_H - 110 + i * 9, '#7fffd0', 1, 'r'));
 }
 function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   if (evq) evq.push(['s', key, f, d, type, vol, slide]);
@@ -176,6 +188,7 @@ function sfx(key, f, d = 0.07, type = 'square', vol = 0.025, slide = 0) {
   sfxT[key] = t;
   voice(ctx, f, d, type, vol, slide, !own);
   AD.sfx++;
+  if (AD.on && (acHeld || own)) { AD.log.push((own ? 'U ' : 'G ') + key + ' ' + (acHeld ? '+' + ((performance.now() - AD.holdT) / 1000).toFixed(1) + 'S HELD' : 'PLAY')); if (AD.log.length > 6) AD.log.shift(); }
 }
 
 // ---------------------------------------------------------------- input
@@ -191,6 +204,7 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if (k.startsWith('arrow') || k === ' ') e.preventDefault();
   if (k === 'f2') AD.on = !AD.on;
+  if (k === 'f3' && AC) { voice(AC, 880, 0.15, 'square', 0.05, 0, false); AD.flash = performance.now() + 150; AD.on = true; }
   initAudio(); onKey(k);
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
