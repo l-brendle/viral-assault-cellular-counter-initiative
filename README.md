@@ -37,7 +37,7 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   gentler: slower spawns, weaker viruses and arcs, a longer grace period, and a few on-screen tips at the start.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
-  weak spot to repair one step (allies help too). Fewer open sacs means less oxygen: you move slower and shake off
+  weak spot to repair one step (repairing is the player's job; allies hunt saboteurs and fight instead). Fewer open sacs means less oxygen: you move slower and shake off
   infection less. If oxygen stays near zero for 15 seconds the lungs collapse and you lose.
   The lungs also **breathe**: inhale pulls everything up toward the trachea, exhale pushes it back down.
   Sick (clogged or collapsed) sacs lob sticky **slime** like the infected lungs in Classic and breed little **slime
@@ -60,6 +60,36 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
 - Cure the organ (poke its weak spot) to stop it. Stunned organs pause their attacks.
 - **Medicine** pills appear at random. You never know what you get: antibiotic, adrenaline, vitamin C, stimulant,
   probiotics and an XP magnet help; placebo, sedative, expired pills and growth hormone don't.
+
+## Balance
+Each level has a tuning table in `public/src/game.js` (`tune.solo` for playing the level on its own, `tune.camp` for the
+campaign, where upgrades carried over from earlier levels make you much stronger, so Lungs and Heart are harder there).
+The numbers were found by simulation: `tools/sim` loads the game headlessly in Node and plays it with bots.
+
+- **perfect** bot: reacts every 0.05s, never misses a telegraphed hazard, hunts saboteurs, repairs, picks the best upgrades.
+- **decent** bot: an attentive but human-ish player (slower reactions, misses some hazards, sometimes a poor target or upgrade).
+- **novice** bot: sanity check, should almost never win.
+
+```bash
+node tools/sim/run.js --mode solo --levels brain,lung,heart,classic --bots novice,decent,perfect --n 60
+node tools/sim/run.js --mode camp --bots decent,perfect --n 60          # campaign: arrival upgrades come from the earlier levels
+node tools/sim/diag.js lung perfect 1 1.4 1.35 7                        # one game's timeline: level bot P Ksab Karc seed
+```
+
+Win rates with the shipped tuning (60 games each):
+
+| | novice | decent | perfect |
+|---|---|---|---|
+| Brain (solo, = campaign level 1) | 0% | 40% | 98% |
+| Lungs (solo) | 27% | 57% | 78% |
+| Heart (solo) | 0% | 30% | 100% |
+| Classic | 25% | 50% | 82% |
+| Campaign: Brain | 3% | 30% | 100% |
+| Campaign: Lungs (with carried upgrades) | 22% | 37% | 50% |
+| Campaign: Heart (with carried upgrades) | 7% | 30% | 97% |
+
+The goal is decent ~30% and perfect ~100%. Brain and Heart reach it; Lungs does not: its outcome depends more on how fast
+the ally army snowballs than on player skill, so the bots stay close together there.
 
 ## Run locally
 ```bash

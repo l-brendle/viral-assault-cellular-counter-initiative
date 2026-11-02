@@ -23,18 +23,20 @@ const ORGANS = [
 ];
 // Levels: each is the inside of one organ. `sacs` are fixables (things to poke back into shape) placed in the world.
 const LEVELS = {
-  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '' },
+  classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.33, swarm: 0.75, dmg: 0.75, hp: 0.87, arc: 1.33 } } },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES, STAY OFF THE LINES',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS! ARCS SPEED UP', p3: 'STORM! STAY OFF THE LINES' },
-    ease: { spawn: 1.7, swarm: 0.6, dmg: 0.5, hp: 0.7, sab: 1.7, arc: 1.4, grace: 25 },   // the first campaign level: slower and gentler so there is time to learn
+    tune: { solo: { spawn: 0.8, swarm: 1.25, dmg: 1.25, hp: 1.12, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240],
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
+    tune: { solo: { spawn: 1, swarm: 1, dmg: 1, hp: 1, sab: 0.7, arc: 0.74 }, camp: { spawn: 0.59, swarm: 1.7, dmg: 1.7, hp: 1.3, sab: 0.53, arc: 0.53 } },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
+    tune: { solo: { spawn: 0.74, swarm: 1.35, dmg: 1.35, hp: 1.16, sab: 0.51, arc: 0.51 }, camp: { spawn: 0.41, swarm: 2.45, dmg: 2.45, hp: 1.57, sab: 0.41, arc: 0.41 } },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
 };
 const FIXNAMES = { syn: ['LIT', 'DIM', 'DARK'], sac: ['OPEN', 'CLOGGED', 'COLLAPSED'], valve: ['OPEN', 'STIFF', 'STUCK'], pace: ['STEADY', 'ERRATIC', 'STALLED'] };
@@ -45,7 +47,10 @@ let lvSel = 'campaign';   // what the title screen has selected
 let lvKey = 'brain';      // the level that is actually loaded
 let camp = null;          // campaign progress while playing it: { i, S0 } (S0 = upgrades at the start of this level)
 const lvl = () => LEVELS[lvKey];
-const ease = k => (lvl().ease && lvl().ease[k]) || 1;   // per-level difficulty multipliers (only the Brain uses them)
+// per-level difficulty multipliers (spawn/swarm/sab/arc: >1 = fewer; dmg/hp: >1 = tougher), one set for playing the level on its
+// own and one for the campaign, where upgrades carried over from earlier levels make the player stronger
+const tuneSet = () => { const t = lvl().tune; return t && (camp && camp.S0 && t.camp ? t.camp : t.solo); };
+const ease = k => { const t = tuneSet(); return (t && t[k]) || 1; };
 const GRACE = () => ease('grace') > 1 ? ease('grace') : 15;   // seconds the signal may stay below 15% before you lose
 
 const canvas = document.getElementById('c');
@@ -334,7 +339,7 @@ function newGame(co) {
       if (!G.edges.some(([x, y]) => (x === f.i && y === o.i) || (x === o.i && y === f.i))) G.edges.push([f.i, o.i]);
     });
   });
-  G.sabT = 14 * ease('sab'); G.hintI = 0;
+  G.sabT = 20 * ease('sab'); G.hintI = 0;
   if (lvl().intro) say(lvl().intro);
   updateCam();
 }
@@ -520,6 +525,11 @@ function chooseTarget(u) {
     for (const o of organs) if (o.team === 'i') { const d = dist(u, o); if (d < bd) { bd = d; best = o; } }
     return best || np;
   }
+  if (G.fix.length) {   // allies go for saboteurs first: they are what wrecks the level
+    let sab = null, sd = 260;
+    for (const v of G.units) if (v.team === 'v' && v.type === 'saboteur' && !v.dead) { const d = dist(u, v); if (d < sd) { sd = d; sab = v; } }
+    if (sab) return sab;
+  }
   const e = nearestEnemy(u, 3);
   if (e) return e;
   let best = null, bd = 300;
@@ -528,8 +538,6 @@ function chooseTarget(u) {
   bd = 500;
   for (const o of organs) if (o.team === 'v') { const d = dist(u, o); if (d < bd) { bd = d; best = o; } }
   if (best) return best;
-  const rf = nearestFix(u, canRepair, 500);
-  if (rf) return rf;
   const np = nearestPlayer(u);
   return np && dist(u, np) > 50 ? np : null;
 }
@@ -682,7 +690,7 @@ function hazardsStep(dt, alive) {
   if (lung && lung.team === 'v' && lung.stunT <= 0 && alive.length) {
     lung.spitT = (lung.spitT == null ? 4 : lung.spitT) - dt;
     if (lung.spitT <= 0) {
-      lung.spitT = Math.max(3.5, 7 - G.t / 90) * rand(0.8, 1.2);
+      lung.spitT = Math.max(3.5, 7 - G.t / 90) * ease('arc') * rand(0.8, 1.2);
       const n = 1 + (G.t > 120 ? 1 : 0) + (G.t > 240 ? 1 : 0) + (players.length > 1 ? 1 : 0);
       for (let i = 0; i < n; i++) {
         let tx, ty;
@@ -706,7 +714,7 @@ function hazardsStep(dt, alive) {
   if (heart && heart.team === 'v' && heart.stunT <= 0 && alive.length) {
     heart.rayT = (heart.rayT == null ? 6 : heart.rayT) - dt;
     if (heart.rayT <= 0) {
-      heart.rayT = Math.max(4.5, 8.5 - G.t / 100) * rand(0.85, 1.15);
+      heart.rayT = Math.max(4.5, 8.5 - G.t / 100) * ease('arc') * rand(0.85, 1.15);
       const n = 1 + (G.t > 150 ? 1 : 0) + (G.t > 270 ? 1 : 0), warn = G.t > 200 ? 1.1 : 1.4;
       for (let i = 0; i < n; i++) {
         let a = rand(0, 6.283);
@@ -784,7 +792,7 @@ function fixStep(dt, alive) {
   if (phase !== G.phase) { G.phase = phase; say(phase === 2 ? T.p2 : T.p3); sfx('charge', 140, 0.6, 'sawtooth', 0.03, 200); }
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
-    G.sabT = Math.max(6, 15 - G.t / 40) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
+    G.sabT = Math.max(6, 24 - G.t / 14) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
     const n = 1 + (G.t > 150 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
     if (G.t < 60 || Math.random() < 0.3) say(T.sab);
@@ -832,7 +840,7 @@ function lungStep(dt, alive, phase) {
   // sick sacs behave like the infected lungs of the classic level: they lob slime and breed little slime enemies
   for (const f of G.fix) {
     if (f.st === 0) { f.spawnMax = 0; continue; }
-    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc');
     f.spitT = (f.spitT == null ? rand(2, 6) : f.spitT) - dt;
     if (f.spitT <= 0) {
       f.spitT = (f.st === 2 ? 6.5 : 11) * fast * rand(0.8, 1.2);
@@ -875,7 +883,7 @@ function heartStep(dt, alive, phase) {
   // sick valves / pacemaker fire fever rays in random directions (a warning lane shows where) and breed embers
   for (const f of G.fix) {
     if (f.st === 0) { f.spawnMax = 0; continue; }
-    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1);
+    const fast = (phase >= 2 ? 0.75 : 1) * (phase >= 3 ? 0.85 : 1) * ease('arc');
     f.rayT = (f.rayT == null ? rand(3, 8) : f.rayT) - dt;
     if (f.rayT <= 0) {
       f.rayT = (f.st === 2 ? 7 : 12) * fast * rand(0.85, 1.15);
@@ -918,7 +926,7 @@ function lashTarget(u, organsOnly) {
     }
   }
   for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);
-  for (const f of G.fix) if (foe === 'i' ? canBreak(f) && u.type === 'saboteur' : canRepair(f)) test(f);   // only saboteurs clog air sacs; allies repair them
+  for (const f of G.fix) if (foe === 'i' && canBreak(f) && u.type === 'saboteur') test(f);   // only saboteurs clog the fixables; repairing them is the player's job
   return best;
 }
 
@@ -1942,7 +1950,8 @@ requestAnimationFrame(frame);
 }
 
 // small hook for automated testing
-window.__dbg = { cont: overContinue, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k; camp = null; newGame(false); }, get fix() { return G.fix; }, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
+window.__dbg = { cont: overContinue, get camp() { return camp; }, get lvKey() { return lvKey; }, setState(v) { state = v; }, poke(p) { const t = pokeNearest(p); return t ? tryPoke(p, t) : false; }, pokeRef(p, t) { return t ? tryPoke(p, t) : false; }, setLevel(k) { lvSel = k; lvKey = k === 'campaign' ? CAMPAIGN[0] : k; camp = null; newGame(false); },
+  startCamp(i, S0) { lvSel = 'campaign'; camp = { i, S0: S0 || null }; startGame(false); }, reach: reachOf, spot: spotOf, get LEVELS() { return LEVELS; }, get tuneSet() { return tuneSet(); }, get fix() { return G.fix; }, oxy, get choices() { return choices; }, render, addUnit, get cam() { return cam; }, get G() { return G; }, get lobby() { return lobby; }, get net() { return net; }, get units() { return G.units; }, get P() { return players[0]; }, get players() { return players; }, get S() { return S; }, get organs() { return organs; }, get state() { return state; },
   start: startGame, step(n, dt = 1 / 60) { for (let i = 0; i < n && state === 'play'; i++) update(dt); },
   pick: i => { if (state === 'levelup') chooseUpgrade(i); } };
 })();

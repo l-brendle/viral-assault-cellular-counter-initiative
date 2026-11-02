@@ -2,5 +2,5 @@
   "name": "viral-assault-cellular-counter-initiative",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "start": "node server.js" }
+  "scripts": { "start": "node server.js", "sim": "node tools/sim/run.js" }
 }
