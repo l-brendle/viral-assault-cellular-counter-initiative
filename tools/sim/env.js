@@ -20,7 +20,7 @@ function loadGame() {
   };
   sb.window = sb;
   vm.createContext(sb);
-  for (const f of ['sprites.js', 'game.js']) vm.runInContext(fs.readFileSync(path.join(SRC, f), 'utf8'), sb, { filename: f });
+  for (const f of ['sprites.js', 'i18n.js', 'game.js']) vm.runInContext(fs.readFileSync(path.join(SRC, f), 'utf8'), sb, { filename: f });
   return {
     d: sb.__dbg,
     seed(n) { const r = mulberry32(n); sb.Math.random = r; },

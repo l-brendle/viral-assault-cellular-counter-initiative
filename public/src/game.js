@@ -209,7 +209,8 @@ function requestFs(mode, e) { if (e.pointerType === 'mouse') setFullscreen(mode)
 document.addEventListener('fullscreenchange', resize);
 document.addEventListener('webkitfullscreenchange', resize);
 const fsBtnPlay = () => ({ x: VIEW_W - 34, y: 42, w: 14, h: 13 });
-const fsBtnTitle = () => ({ x: VIEW_W - 70, y: 4, w: 66, h: 14 });
+const btnW = label => Math.max(66, label.length * FONT_ADV + 10);   // translated labels can be longer than the English ones
+const fsBtnTitle = () => { const w = btnW(tr(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN')); return { x: VIEW_W - 4 - w, y: 4, w, h: 14 }; };
 // click / tap on a weak spot (within reach) -> tail poke
 function pokeClick(fingers) {
   const wx = mouse.sx + cam.x, wy = mouse.sy + cam.y;
@@ -327,7 +328,7 @@ function onKey(k) {
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); else if (k === 's') titleChoice(7); }
-  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); }
+  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); else if (k === '3') toggleSetting(2); }
   else if (state === 'levels') { if (k === 'escape' || k === 'backspace') state = 'title'; else if (k >= '1' && k <= '7') pickLevel(LEVEL_SEL[+k - 1]); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
@@ -369,7 +370,8 @@ let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 
 // player settings (kept in localStorage): auto level-up picks upgrades by itself so play is never interrupted,
 // auto fire is whether shooting starts switched on (F still toggles it during play)
-const settings = (() => { try { return { autoLevel: false, autoFire: true, ...JSON.parse(localStorage.getItem('vaccine.settings') || '{}') }; } catch (e) { return { autoLevel: false, autoFire: true }; } })();
+const settings = (() => { try { return { autoLevel: false, autoFire: true, lang: 'en', ...JSON.parse(localStorage.getItem('vaccine.settings') || '{}') }; } catch (e) { return { autoLevel: false, autoFire: true, lang: 'en' }; } })();
+setLang(settings.lang);
 function saveSettings() { try { localStorage.setItem('vaccine.settings', JSON.stringify(settings)); } catch (e) { /* private mode */ } }
 // cross-level progression: beating a level unlocks a power that can then show up in the level-up choices (kept in localStorage)
 const UNLOCKS = { brain: 'plight', lung: 'pslime', heart: 'pray' };
@@ -378,20 +380,20 @@ let unlocked = loadUnlocks();
 let hasPet = (() => { try { return localStorage.getItem('vaccine.pet') === '1'; } catch (e) { return false; } })();   // the Man Flu pet follows you through every level once earned
 function saveUnlocks() { try { localStorage.setItem('vaccine.unlocks', JSON.stringify([...unlocked])); } catch (e) { /* private mode */ } }
 const UPGRADES = [
-  { id: 'aura',   name: 'ANTISEPTIC AURA',  desc: ['HURTS VIRUSES', 'AROUND YOU'] },
-  { id: 'orbit',  name: 'PLATELET ORBIT',   desc: ['PLATELETS CIRCLE', 'YOU AND SMASH'] },
-  { id: 'shoot',  name: 'ANTIBODY SHOT',    desc: ['UNLOCKS SHOOTING', 'AT NEAR VIRUSES'], max: 1 },
-  { id: 'split',  name: 'MITOSIS',          desc: ['SPLIT OFF CHILD', 'ALLIES REGULARLY'] },
-  { id: 'rate',   name: 'RAPID ANTIBODIES', desc: ['SHOOT FASTER'], needs: 'shoot' },
-  { id: 'multi',  name: 'SPLIT ANTIBODY',   desc: ['+1 SHOT PER', 'VOLLEY'], needs: 'shoot' },
-  { id: 'dmg',    name: 'STRONG ANTIBODY',  desc: ['SHOTS HIT HARDER'], needs: 'shoot' },
-  { id: 'speed',  name: 'SWIFT CELL',       desc: ['RUN FASTER'] },
-  { id: 'magnet', name: 'CYTOKINE PULL',    desc: ['PULL XP FROM', 'FURTHER AWAY'] },
-  { id: 'regen',  name: 'IMMUNE MEMORY',    desc: ['SHAKE OFF', 'INFECTION FASTER'] },
-  { id: 'reach',  name: 'LONG TAIL',        desc: ['POKE WEAK SPOTS', 'FROM FARTHER OUT'] },
-  { id: 'plight', name: 'STATIC SHOCK',     desc: ['LIGHTNING ZAPS', 'NEARBY VIRUSES'], unlock: 'brain', info: ['LIGHTNING STRIKES VIRUSES NEAR YOU', 'UPGRADES: MORE BOLTS, MORE DAMAGE'] },
-  { id: 'pslime', name: 'PHAGE SLIME',      desc: ['SLIME STICKS', 'NEARBY VIRUSES'], unlock: 'lung', info: ['SPITS SLIME THAT FREEZES VIRUSES', 'UPGRADES: MORE GLOBS, BIGGER PUDDLES'] },
-  { id: 'pray',   name: 'FEVER BEAM',       desc: ['HORIZONTAL RAY,', 'LONG RANGE'], unlock: 'heart', info: ['A LONG HORIZONTAL RAY THROUGH VIRUSES', 'UPGRADES: LONGER AND STRONGER'] },
+  { id: 'aura',   name: 'ANTISEPTIC AURA',  desc: 'HURTS VIRUSES AROUND YOU' },
+  { id: 'orbit',  name: 'PLATELET ORBIT',   desc: 'PLATELETS CIRCLE YOU AND SMASH' },
+  { id: 'shoot',  name: 'ANTIBODY SHOT',    desc: 'UNLOCKS SHOOTING AT NEAR VIRUSES', max: 1 },
+  { id: 'split',  name: 'MITOSIS',          desc: 'SPLIT OFF CHILD ALLIES REGULARLY' },
+  { id: 'rate',   name: 'RAPID ANTIBODIES', desc: 'SHOOT FASTER', needs: 'shoot' },
+  { id: 'multi',  name: 'SPLIT ANTIBODY',   desc: '+1 SHOT PER VOLLEY', needs: 'shoot' },
+  { id: 'dmg',    name: 'STRONG ANTIBODY',  desc: 'SHOTS HIT HARDER', needs: 'shoot' },
+  { id: 'speed',  name: 'SWIFT CELL',       desc: 'RUN FASTER' },
+  { id: 'magnet', name: 'CYTOKINE PULL',    desc: 'PULL XP FROM FURTHER AWAY' },
+  { id: 'regen',  name: 'IMMUNE MEMORY',    desc: 'SHAKE OFF INFECTION FASTER' },
+  { id: 'reach',  name: 'LONG TAIL',        desc: 'POKE WEAK SPOTS FROM FARTHER OUT' },
+  { id: 'plight', name: 'STATIC SHOCK',     desc: 'LIGHTNING ZAPS NEARBY VIRUSES', unlock: 'brain', info: 'LIGHTNING STRIKES VIRUSES NEAR YOU. UPGRADES: MORE BOLTS, MORE DAMAGE' },
+  { id: 'pslime', name: 'PHAGE SLIME',      desc: 'SLIME STICKS NEARBY VIRUSES', unlock: 'lung', info: 'SPITS SLIME THAT FREEZES VIRUSES. UPGRADES: MORE GLOBS, BIGGER PUDDLES' },
+  { id: 'pray',   name: 'FEVER BEAM',       desc: 'HORIZONTAL RAY, LONG RANGE', unlock: 'heart', info: 'A LONG HORIZONTAL RAY THROUGH VIRUSES. UPGRADES: LONGER AND STRONGER' },
 ];
 const MAX_UP = 5;
 const PCOL = ['#8fd0ff', '#ffc070'];   // per-player UI colours
@@ -1345,17 +1347,34 @@ function update(dt) {
 }
 
 // ---------------------------------------------------------------- drawing
+// accents: the font only has plain capitals, so a letter with an accent is its base letter plus a few extra dots above (or below)
+const ACCENT = { '\u0300': { up: ['01000', '00100'] }, '\u0301': { up: ['00010', '00100'] }, '\u0302': { up: ['00100', '01010'] }, '\u0303': { up: ['01101', '10010'] },
+  '\u0308': { up: ['01010', '00000'] }, '\u0327': { dn: ['00100', '01100'] } };
+const textCache = new Map();
+function textRuns(s) {   // translated, upper-cased text as [glyph, accent] pairs
+  let r = textCache.get(s);
+  if (!r) {
+    r = [];
+    for (const ch of tr(s).toUpperCase().normalize('NFD')) { if (ACCENT[ch] && r.length) r[r.length - 1][1] = ACCENT[ch]; else r.push([ch, null]); }
+    if (textCache.size > 3000) textCache.clear();
+    textCache.set(s, r);
+  }
+  return r;
+}
 function drawText(s, x, y, col = '#fff', sc = 1, align = 'l', shadow = true) {
-  s = String(s).toUpperCase();
-  const w = s.length * FONT_ADV * sc - sc;
+  const runs = textRuns(String(s));
+  while (sc > 1 && runs.length * FONT_ADV * sc - sc > VIEW_W - 4) sc--;   // long translations shrink instead of running off the screen
+  const w = runs.length * FONT_ADV * sc - sc;
   if (align === 'c') x -= w / 2; else if (align === 'r') x -= w;
   x = Math.round(x); y = Math.round(y);
   for (const pass of shadow ? [1, 0] : [0]) {
     ctx.fillStyle = pass ? '#000' : col;
-    for (let i = 0; i < s.length; i++) {
-      const gl = FONT[s[i]]; if (!gl) continue;
-      for (let r = 0; r < FONT_H; r++) for (let c = 0; c < FONT_W; c++)
-        if (gl[r][c] === '#') ctx.fillRect(x + (i * FONT_ADV + c) * sc + pass * sc, y + r * sc + pass * sc, sc, sc);
+    for (let i = 0; i < runs.length; i++) {
+      const gl = FONT[runs[i][0]], ac = runs[i][1], ox = x + i * FONT_ADV * sc + pass * sc, oy = y + pass * sc;
+      if (gl) for (let r = 0; r < FONT_H; r++) for (let c = 0; c < FONT_W; c++)
+        if (gl[r][c] === '#') ctx.fillRect(ox + c * sc, oy + r * sc, sc, sc);
+      if (ac) for (const [rows, y0] of [[ac.up, -2], [ac.dn, FONT_H]]) if (rows)
+        rows.forEach((row, r) => { for (let c = 0; c < FONT_W; c++) if (row[c] === '1') ctx.fillRect(ox + c * sc, oy + (y0 + r) * sc, sc, sc); });
     }
   }
 }
@@ -2129,13 +2148,13 @@ function drawHud() {
   rect(4, xy + 1, Math.round(80 * S.xp / S.next), 3, '#38b8ff');
   drawText('LV ' + S.level + '  RES ' + Math.round(S.res * 100) + '%', 4, xy + 8, '#bfe8ff');
   const keyHint = touchUI ? '' : ' [F]';
-  if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + 'FIRE ' + (p.autoFire ? 'ON' : 'OFF')).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
+  if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + tr('FIRE ' + (p.autoFire ? 'ON' : 'OFF'))).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
   {   // active medicine effects
     const locals = isGuest() ? [players[meIdx()]] : net ? [players[0]] : players;
     let by = xy + 17 + (S.shoot ? 9 : 0);
     for (const p of locals) {
       if (!p) continue;
-      const list = [['speed', 'SPEED'], ['shield', 'SHIELD'], ['poke', 'POKE+'], ['bloat', 'BIG'], ['slow', 'SLOW']].filter(([k]) => p.fx[k] > 0).map(([k, nm]) => nm + ' ' + Math.ceil(p.fx[k]));
+      const list = [['speed', 'SPEED'], ['shield', 'SHIELD'], ['poke', 'POKE+'], ['bloat', 'BIG'], ['slow', 'SLOW']].filter(([k]) => p.fx[k] > 0).map(([k, nm]) => tr(nm) + ' ' + Math.ceil(p.fx[k]));
       if (!list.length) continue;
       drawText((locals.length > 1 ? 'P' + (p.idx + 1) + ' ' : '') + list.join('  '), 4, by, p.fx.slow > 0 || p.fx.bloat > 0 ? '#ffd88a' : '#7fffd0'); by += 9;
     }
@@ -2147,7 +2166,7 @@ function drawHud() {
     const heart = lvKey === 'heart', T = lvl().txt, O = oxy(), w = 80, x = VIEW_W / 2 - w / 2, warn = G.suffT > 0;
     rect(x - 1, 20, w + 2, 7, '#000'); rect(x, 21, w, 5, '#102840'); rect(x, 21, Math.round(w * 0.15), 5, '#3a1018'); rect(x, 21, Math.round(w * O), 5, O < 0.3 ? '#ff5050' : heart ? '#ff7a8a' : lvKey === 'brain' ? '#8a9aff' : '#4ad8ff');
     rect(x + Math.round(w * 0.15), 20, 1, 7, '#ff5050');   // below this line the countdown to losing starts
-    drawText(warn ? T.warn + ' ' + Math.max(0, Math.ceil(GRACE() - G.suffT)) : T.bar + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 29, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
+    drawText(warn ? tr(T.warn) + ' ' + Math.max(0, Math.ceil(GRACE() - G.suffT)) : tr(T.bar) + ' ' + Math.round(O * 100) + '%', VIEW_W / 2, 29, warn && Math.floor(G.t * 4) % 2 ? '#ff5050' : O < 0.3 ? '#ff9a9a' : '#bfe8ff', 1, 'c');
     if (heart) {
       const fv = Math.round((1 - O) * 100), pu = beatPulse(), ic = SPR.heartIcon, k = 1 + 0.5 * pu;
       ctx.drawImage(ic, Math.round(VIEW_W / 2 - 22 - ic.width * k / 2), Math.round(VIEW_H - 14 - (k - 1) * 4), Math.round(ic.width * k), Math.round(ic.height * k));
@@ -2163,11 +2182,11 @@ function drawHud() {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
     }
-    rect(3, VIEW_H - 63, 'PHASE 1/3'.length * FONT_ADV + 3, FONT_H + 3, '#000', 0.55);
+    rect(3, VIEW_H - 63, tr('PHASE ' + G.phase + '/3').length * FONT_ADV + 3, FONT_H + 3, '#000', 0.55);
     drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 62, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
     const hacked = G.fix.filter(f => f.hackN > 0);
     if (hacked.length) {   // loud banner: something is being attacked right now
-      const top = hacked.reduce((a, b) => b.hackP > a.hackP ? b : a), txt = '! ' + fixTag(top) + ' UNDER ATTACK' + (hacked.length > 1 ? ' +' + (hacked.length - 1) : '') + ' !', fl = Math.floor(G.t * 5) % 2;
+      const top = hacked.reduce((a, b) => b.hackP > a.hackP ? b : a), txt = '! ' + tr(fixTag(top)) + ' ' + tr('UNDER ATTACK') + (hacked.length > 1 ? ' +' + (hacked.length - 1) : '') + ' !', fl = Math.floor(G.t * 5) % 2;
       rect(VIEW_W / 2 - (txt.length * FONT_ADV) / 2 - 5, 39, txt.length * FONT_ADV + 10, FONT_H + 4, fl ? '#a01880' : '#400a38', 0.9);
       drawText(txt, VIEW_W / 2, 41, '#fff', 1, 'c');
     }
@@ -2182,7 +2201,7 @@ function drawHud() {
   drawText('ALLIES ' + count('i'), VIEW_W - 4, 4, '#7fffd0', 1, 'r');
   drawText('KILLS ' + G.kills, VIEW_W - 4, 13, '#fff', 1, 'r');
   drawText('TURNED ' + G.conv, VIEW_W - 4, 22, '#7fe8ff', 1, 'r');
-  if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + lvl().name, VIEW_W - 4, 31, '#ffe070', 1, 'r');
+  if (camp) drawText((camp.i + 1) + '/' + CAMPAIGN.length + ' ' + tr(lvl().name), VIEW_W - 4, 31, '#ffe070', 1, 'r');
   // minimap: where every objective is and how it is doing (blue ok, yellow damaged, red lost, flashing magenta being hacked)
   {
     const mw = 60, mh = 45, mx = 4, my = VIEW_H - mh - 4, k = mw / CFG.W, fl = Math.floor(G.t * 6) % 2;
@@ -2201,13 +2220,15 @@ function drawHud() {
     if (lbl) drawText(lbl, mx, my - 9, '#bfe8ff', 1, 'l');
   }
   if (G.msgT > 0 && state !== 'levelup' && state !== 'over') {   // not under the level-up / end screens
-    const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 54;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
-    rect(VIEW_W / 2 - w / 2, my, w, FONT_H * sc + 4, '#000', 0.6);
-    drawText(G.msg, VIEW_W / 2, my + 2, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
+    const sc = tr(G.msg).length * 12 + 12 > VIEW_W ? 1 : 2, ls = wrapText(G.msg, Math.floor((VIEW_W - 16) / (FONT_ADV * sc))).slice(0, 3), lh = FONT_H * sc + 2, my = 54;   // below the HUD stack on the left; long messages drop to small text and wrap
+    const w = Math.max(...ls.map(l => l.length)) * FONT_ADV * sc + 12;
+    rect(VIEW_W / 2 - w / 2, my, w, lh * ls.length + 2, '#000', 0.6);
+    const mcol = G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070';
+    ls.forEach((l, k) => drawText(l, VIEW_W / 2, my + 2 + k * lh, mcol, sc, 'c'));
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
-  const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: o.tag, col: '#9ae05a', tc: '#b8f070' }))
-    .concat(G.fix.filter(f => f.st > 0 || f.hackN > 0).map(f => ({ x: f.x, y: f.y, tag: fixTag(f), col: f.hackN > 0 ? '#ff40d0' : f.st > 1 ? '#ff5a4a' : '#ffd060', tc: f.hackN > 0 ? '#ff90e8' : f.st > 1 ? '#ff9a8a' : '#ffd88a', hot: f.hackN > 0, lost: f.st > 1, pct: f.hackN > 0 ? Math.round(f.hackP * 100) : -1 })))
+  const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: tr(o.tag), col: '#9ae05a', tc: '#b8f070' }))
+    .concat(G.fix.filter(f => f.st > 0 || f.hackN > 0).map(f => ({ x: f.x, y: f.y, tag: tr(fixTag(f)), col: f.hackN > 0 ? '#ff40d0' : f.st > 1 ? '#ff5a4a' : '#ffd060', tc: f.hackN > 0 ? '#ff90e8' : f.st > 1 ? '#ff9a8a' : '#ffd88a', hot: f.hackN > 0, lost: f.st > 1, pct: f.hackN > 0 ? Math.round(f.hackP * 100) : -1 })))
     .concat(players.filter(p => p.down).map(p => ({ x: p.x, y: p.y, tag: 'P' + (p.idx + 1), col: '#7fffd0', tc: '#7fffd0' })));
   for (const o of marks) {
     const sx = o.x - cam.x, sy = o.y - cam.y;
@@ -2254,8 +2275,9 @@ function drawTouch() {
 
 const TBW = 94, TBH = 20;
 const tbtn = i => ({ x: i ? (i === 1 ? -98 : 4) : -47, y: VIEW_H - 76 + (i ? 1 : 0) * 24 });   // 1 PLAYER on top, the two online buttons below, anchored to the bottom
-const powBtn = () => VIEW_H < 220 ? { x: VIEW_W / 2 - 68, y: VIEW_H - 25, w: 66, h: 14 } : { x: 4, y: 4, w: 66, h: 14 };   // phones: one row under the main buttons, clear of the title
-const setBtn = () => VIEW_H < 220 ? { x: VIEW_W / 2 + 2, y: VIEW_H - 25, w: 66, h: 14 } : { x: 4, y: 22, w: 66, h: 14 };
+const powLabel = () => tr('POWERS') + (touchUI ? '' : ' [P]'), setLabel = () => tr('SETTINGS') + (touchUI ? '' : ' [S]');
+const powBtn = () => { const w = btnW(powLabel()); return VIEW_H < 220 ? { x: VIEW_W / 2 - 2 - w, y: VIEW_H - 25, w, h: 14 } : { x: 4, y: 4, w, h: 14 }; };   // phones: one row under the main buttons, clear of the title
+const setBtn = () => { const w = btnW(setLabel()); return VIEW_H < 220 ? { x: VIEW_W / 2 + 2, y: VIEW_H - 25, w, h: 14 } : { x: 4, y: 22, w, h: 14 }; };
 const powBackBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 24, w: 80, h: 14 });
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
@@ -2292,12 +2314,12 @@ function drawTitle() {
   {
     const b = setBtn(), h = hov === 7 && !touchUI;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
-    drawText('SETTINGS' + (touchUI ? '' : ' [S]'), b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
+    drawText(setLabel(), b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
   }
   {
     const b = powBtn(), h = hov === 6 && !touchUI;
     rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#ffd24a'); rect(b.x, b.y, b.w, b.h, h ? '#3c3418' : '#241e0c');
-    drawText('POWERS' + (touchUI ? '' : ' [P]'), b.x + b.w / 2, b.y + 4, '#ffd24a', 1, 'c');
+    drawText(powLabel(), b.x + b.w / 2, b.y + 4, '#ffd24a', 1, 'c');
   }
   if (fsAvail()) {
     const f = fsBtnTitle();
@@ -2352,24 +2374,25 @@ function drawLevelSelect() {
   drawText('BACK', b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
 }
 const SETTING_DEFS = [
-  { key: 'autoLevel', name: 'AUTO LEVEL-UP', info: ['PICKS UPGRADES FOR YOU SO THE GAME', 'NEVER STOPS. THE SHOOTING UNLOCK COMES FIRST'] },
-  { key: 'autoFire', name: 'AUTO FIRE', info: ['SHOOTING STARTS SWITCHED ON', 'F TURNS IT ON OR OFF DURING A RUN'] },
+  { key: 'autoLevel', name: 'AUTO LEVEL-UP', info: 'PICKS UPGRADES FOR YOU SO THE GAME NEVER STOPS. THE SHOOTING UNLOCK COMES FIRST' },
+  { key: 'autoFire', name: 'AUTO FIRE', info: 'SHOOTING STARTS SWITCHED ON. F TURNS IT ON OR OFF DURING A RUN' },
+  { key: 'lang', name: 'LANGUAGE', info: 'CHANGE THE GAME LANGUAGE' },
 ];
 const settingRows = () => {
   const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 34 : 40;
   return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 34 : 50) + i * (h + 6), w, h }));
 };
-function toggleSetting(i) { const d = SETTING_DEFS[i]; if (!d) return; settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
+function toggleSetting(i) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + 1) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
 function drawSettingsMenu() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
   const c = VIEW_W / 2, compact = VIEW_H < 220;
   drawText('SETTINGS', c, compact ? 6 : 10, '#9ae05a', compact ? 2 : 3, 'c');
   settingRows().forEach((r, i) => {
-    const d = SETTING_DEFS[i], on = settings[d.key], h = !touchUI && inRect(r, mouse.sx, mouse.sy);
+    const d = SETTING_DEFS[i], isLang = d.key === 'lang', on = !isLang && settings[d.key], h = !touchUI && inRect(r, mouse.sx, mouse.sy);
     rect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, h ? '#ffe070' : on ? '#7fffd0' : '#4aa8ff'); rect(r.x, r.y, r.w, r.h, '#12204a');
     drawText((touchUI ? '' : '[' + (i + 1) + '] ') + d.name, r.x + 6, r.y + 4, '#fff', 1, 'l');
-    drawText(on ? 'ON' : 'OFF', r.x + r.w - 6, r.y + 4, on ? '#7fffd0' : '#ff9a9a', 1, 'r');
-    d.info.forEach((t, j) => drawText(t, r.x + 6, r.y + 16 + j * 9, '#bfe8ff', 1, 'l'));
+    drawText(isLang ? LANGS[LANG].name : on ? 'ON' : 'OFF', r.x + r.w - 6, r.y + 4, isLang ? '#ffe070' : on ? '#7fffd0' : '#ff9a9a', 1, 'r');
+    wrapText(d.info, Math.floor((r.w - 12) / FONT_ADV)).slice(0, 2).forEach((t, j) => drawText(t, r.x + 6, r.y + 16 + j * 9, '#bfe8ff', 1, 'l'));
   });
   const b = powBackBtn(), h = !touchUI && inRect(b, mouse.sx, mouse.sy);
   rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
@@ -2381,14 +2404,14 @@ function drawPowersMenu() {
   drawText('POWERS', c, 8, '#ffd24a', 3, 'c');
   drawText('BEAT A LEVEL TO UNLOCK ITS POWER', c, 34, '#bfe8ff', 1, 'c');
   const rows = UPGRADES.filter(u => u.unlock).map(u => ({ on: unlocked.has(u.id), name: u.name, info: u.info, lock: 'BEAT THE ' + LEVELS[u.unlock].name + ' LEVEL TO UNLOCK' }))
-    .concat([{ on: hasPet, name: 'MAN FLU', tag: 'PET', info: ['A LITTLE FRIEND THAT FOLLOWS YOU', 'THROUGH EVERY LEVEL'], lock: 'A SECRET WAITS IN THE BRAIN' }]);
+    .concat([{ on: hasPet, name: 'MAN FLU', tag: 'PET', info: 'A LITTLE FRIEND THAT FOLLOWS YOU THROUGH EVERY LEVEL', lock: 'A SECRET WAITS IN THE BRAIN' }]);
   const step = Math.min(40, Math.floor((VIEW_H - 74) / rows.length)), compact = step < 36;
   rows.forEach((r, i) => {
     const y = 44 + i * step, w = Math.min(VIEW_W - 24, 360), x = c - w / 2, h = step - 4;
     rect(x - 1, y - 1, w + 2, h + 2, r.on ? '#ffd24a' : '#303a58'); rect(x, y, w, h, r.on ? '#1c2448' : '#0c1020');
     drawText(r.on ? r.name : '??? ' + (r.tag ? 'SECRET' : r.name), x + 6, y + 3, r.on ? '#ffd24a' : '#6a7490', 1, 'l');
     drawText(r.on ? (r.tag ? 'EARNED' : 'UNLOCKED') : 'LOCKED', x + w - 6 - (r.on && r.tag ? 18 : 0), y + 3, r.on ? '#7fffd0' : '#ff9a9a', 1, 'r');
-    if (r.on) r.info.slice(0, compact ? 1 : 2).forEach((t, j) => drawText(t, x + 6, y + 13 + j * 9, '#bfe8ff', 1, 'l'));
+    if (r.on) wrapText(compact ? r.info.split('. ')[0] : r.info, Math.floor((w - 12) / FONT_ADV)).slice(0, compact ? 1 : 2).forEach((t, j) => drawText(t, x + 6, y + 13 + j * 9, '#bfe8ff', 1, 'l'));
     else drawText(r.lock, x + 6, y + 13, '#8aa0d0', 1, 'l');
     if (r.on && r.tag) ctx.drawImage(SPR.pet, Math.round(x + w - 22), Math.round(y + h / 2 - 6));
   });
@@ -2424,7 +2447,7 @@ function drawLobby() {
     drawText(b.id, b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
   }
   const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
-  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 142 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
+  drawText(tr(lobby.msg) + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 142 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
 }
 
 const CARD = { w: 100, h: 84, gap: 4, y: 92 };
@@ -2447,7 +2470,7 @@ function drawLevelUp() {
     drawText('[' + (i + 1) + ']', r.x + 4, r.y + 4, '#8aa0d0');
     if (u.unlock) drawText(LEVELS[u.unlock].name + ' POWER', r.x + r.w - 4, r.y + 4, '#ffd24a', 1, 'r');
     drawText(u.name, r.x + r.w / 2, r.y + 16, u.unlock ? '#ffd24a' : '#fff', 1, 'c');
-    u.desc.forEach((t, j) => drawText(t, r.x + r.w / 2, r.y + 32 + j * 9, '#bfe8ff', 1, 'c'));
+    wrapText(u.desc, 15).slice(0, 3).forEach((t, j) => drawText(t, r.x + r.w / 2, r.y + 32 + j * 9, '#bfe8ff', 1, 'c'));
     drawText(lv === 0 ? 'NEW!' : 'LV ' + lv + ' > ' + (lv + 1), r.x + r.w / 2, r.y + r.h - 12, lv === 0 ? '#7fffd0' : '#ffe070', 1, 'c');
     const pips = u.max || MAX_UP;
     for (let s = 0; s < pips; s++) rect(r.x + r.w / 2 - (pips * 6 - 2) / 2 + s * 6, r.y + r.h - 20, 4, 3, s < lv ? '#ffe070' : '#304070');
