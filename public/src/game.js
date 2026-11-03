@@ -1754,7 +1754,8 @@ function drawGlobs() {
   }
 }
 
-// the neuron web: every lane is a fine dotted track; when both synapses are lit, data pulses stream along it (in both directions). A dim end makes the lane flicker and the pulses fizzle out; dark ends leave only a faint ghost lane.
+// the neuron web: every lane is a very faint dotted track; when both synapses are lit, soft light pulses swell and travel along it (in both directions)
+// instead of bright dots, so the lanes don't read as gems or shots. A dim end makes the lane flicker and the pulses fizzle out; dark ends leave only a ghost lane.
 function drawWeb() {
   for (const [a, b, bend = 0] of G.edges) {
     const A = G.fix[a], B = G.fix[b];
@@ -1762,24 +1763,21 @@ function drawWeb() {
     const l = dist(A, B), nx = -(B.y - A.y) / l, ny = (B.x - A.x) / l, n = Math.floor(l / 4);
     const worst = Math.max(A.st, B.st), ok = worst === 0;
     const at = (t, side) => { const o = side * 1.6 + bend * 4 * t * (1 - t); return [A.x + (B.x - A.x) * t + nx * o - cam.x + shx, A.y + (B.y - A.y) * t + ny * o - cam.y + shy]; };
-    {
-      const side = 0;
-      for (let k = 1; k < n; k++) {
-        const [x, y] = at(k / n, side);
-        if (x < -2 || y < -2 || x > VIEW_W + 2 || y > VIEW_H + 2) continue;
-        rect(x, y, 1, 1, ok ? '#7fd0ff' : worst === 1 ? '#8a78c8' : '#4a3a78', ok ? 0.5 : worst === 1 ? 0.25 + 0.25 * Math.sin(G.t * 9 + k * 0.7 + a) : 0.2);
-      }
-      if (worst < 2) for (let k = 0; k < 4; k++) {   // pulses run both ways (alternating), fizzling out part-way along a lane with a dim end
-        const back = k % 2 === 1;
-        let t = (G.t * (0.3 + 0.04 * k) + k / 4 + a * 0.13) % 1;
-        if (back) t = 1 - t;
-        if (!ok && (back ? 1 - t : t) > 0.45 + 0.2 * Math.sin(G.t * 3 + k)) continue;
-        const [x, y] = at(t, side);
-        if (x < -3 || y < -3 || x > VIEW_W + 3 || y > VIEW_H + 3) continue;
-        rect(x - 1, y - 1, 3, 3, '#e8f8ff', ok ? 0.95 : 0.6);
-        const [tx, ty] = at(clamp(t + (back ? 0.012 : -0.012), 0, 1), side);
-        rect(tx - 0.5, ty - 0.5, 2, 2, '#8ab4ff', 0.5);
-      }
+    const pulses = [];   // positions of the light pulses on this lane (0..1 from A to B), two per lane, one each way
+    if (worst < 2) for (let k = 0; k < 2; k++) {
+      let t = (G.t * (0.22 + 0.05 * k) + k / 2 + a * 0.13) % 1;
+      if (k) t = 1 - t;
+      if (!ok && (k ? 1 - t : t) > 0.45 + 0.2 * Math.sin(G.t * 3 + k)) continue;   // fizzles out part-way along a lane with a dim end
+      pulses.push(t);
+    }
+    for (let k = 1; k < n; k++) {
+      const t = k / n, [x, y] = at(t, 0);
+      if (x < -2 || y < -2 || x > VIEW_W + 2 || y > VIEW_H + 2) continue;
+      let glow = 0;
+      for (const pt of pulses) { const d = (t - pt) / 0.09; glow += Math.exp(-d * d); }
+      if (ok) rect(x, y, 1, 1, '#6aaee8', 0.14 + 0.3 * Math.min(1, glow));
+      else if (worst === 1) rect(x, y, 1, 1, '#8a78c8', 0.1 + 0.1 * Math.sin(G.t * 9 + k * 0.7 + a) + 0.2 * Math.min(1, glow));
+      else rect(x, y, 1, 1, '#4a3a78', 0.1);
     }
   }
 }
