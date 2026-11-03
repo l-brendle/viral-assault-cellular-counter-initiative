@@ -19,6 +19,10 @@ You start without a gun: **Antibody Shot** is a level-up unlock (offered on your
 Strong Antibody upgrades only appear after it. **Mitosis** makes you swell and then split off child allies (one more
 per level), leaving you smaller until you grow back.
 
+**Settings** (title screen, `S`): *Auto level-up* picks upgrades for you so play is never interrupted (the Antibody Shot
+unlock is taken first), and *Auto fire* sets whether shooting starts switched on (`F` still toggles it in a run).
+Both are remembered in the browser.
+
 Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
 ## Levels

@@ -266,6 +266,7 @@ canvas.addEventListener('pointerdown', e => {
   else if (state === 'levels') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const t = levelTiles().find(t => inRect(t, mouse.sx, mouse.sy)); if (t) pickLevel(t.key); } }
   else if (state === 'lobby') lobbyTap();
   else if (state === 'powers') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; }
+  else if (state === 'settings') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const i = settingRows().findIndex(r => inRect(r, mouse.sx, mouse.sy)); if (i >= 0) toggleSetting(i); } }
   else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
@@ -309,6 +310,7 @@ function titleChoice(m) {
   if (m === 1 || m === 2) { playMode = m; state = 'levels'; }
   else if (m === 3) { lobby = { mode: 'join', code: '', msg: '' }; state = 'lobby'; }
   else if (m === 6) state = 'powers';
+  else if (m === 7) state = 'settings';
 }
 function pickLevel(key) {
   lvSel = key; lvKey = key === 'campaign' ? CAMPAIGN[0] : key; camp = null; newGame(false);
@@ -324,7 +326,8 @@ function onKey(k) {
     else if (k === 'enter') lobbyPress('GO');
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
-  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); }
+  else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); else if (k === 's') titleChoice(7); }
+  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); }
   else if (state === 'levels') { if (k === 'escape' || k === 'backspace') state = 'title'; else if (k >= '1' && k <= '7') pickLevel(LEVEL_SEL[+k - 1]); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
@@ -364,6 +367,10 @@ function readInput(p) {
 let state = 'title';
 let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 
+// player settings (kept in localStorage): auto level-up picks upgrades by itself so play is never interrupted,
+// auto fire is whether shooting starts switched on (F still toggles it during play)
+const settings = (() => { try { return { autoLevel: false, autoFire: true, ...JSON.parse(localStorage.getItem('vaccine.settings') || '{}') }; } catch (e) { return { autoLevel: false, autoFire: true }; } })();
+function saveSettings() { try { localStorage.setItem('vaccine.settings', JSON.stringify(settings)); } catch (e) { /* private mode */ } }
 // cross-level progression: beating a level unlocks a power that can then show up in the level-up choices (kept in localStorage)
 const UNLOCKS = { brain: 'plight', lung: 'pslime', heart: 'pray' };
 const loadUnlocks = () => { try { return new Set(JSON.parse(localStorage.getItem('vaccine.unlocks') || '[]')); } catch (e) { return new Set(); } };
@@ -389,7 +396,7 @@ const UPGRADES = [
 const MAX_UP = 5;
 const PCOL = ['#8fd0ff', '#ffc070'];   // per-player UI colours
 
-const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, bloat: 0 }, stuckT: 0, slimeImm: 0, mass: 1, splitT: 0, splitting: 0, splitBase: 0, kx: 0, ky: 0, kickT: 0, autoFire: true, padDown2: false, tail: null, tailG: null, pokeCd: 0, padDown: false, idx, x, y, vx: 0, vy: 0, infection: 0, hitT: 9, bob: 0, aim: 0, flash: 0,
+const mkPlayer = (idx, x, y) => ({ fx: { speed: 0, slow: 0, shield: 0, poke: 0, bloat: 0 }, stuckT: 0, slimeImm: 0, mass: 1, splitT: 0, splitting: 0, splitBase: 0, kx: 0, ky: 0, kickT: 0, autoFire: settings.autoFire, padDown2: false, tail: null, tailG: null, pokeCd: 0, padDown: false, idx, x, y, vx: 0, vy: 0, infection: 0, hitT: 9, bob: 0, aim: 0, flash: 0,
   scheme: idx, remote: false, netInp: null, fireCd: 0, orbitA: idx * Math.PI, auraT: 0, down: false, reviveT: 0, inp: { mx: 0, my: 0, aim: null } });
 
 function newGame(co) {
@@ -528,6 +535,11 @@ function checkLevel() {
   if (!choices.length) {   // everything maxed: full heal instead of an empty menu
     for (const p of players) p.infection = 0;
     say('LEVEL UP! FULLY HEALED'); checkLevel(); return;
+  }
+  if (settings.autoLevel && !isGuest()) {   // no menu: take the shooting unlock when offered, otherwise a random one of the three
+    const i = Math.max(0, choices.findIndex(c => c.id === 'shoot'));
+    tip(players[0].x, players[0].y - 22, 'LEVEL UP: ' + choices[i].name, '#8fd0ff');
+    chooseUpgrade(i); return;
   }
   state = 'levelup';
 }
@@ -1803,7 +1815,7 @@ function render() {
   if (state === 'lobby') { drawLobby(); return; }
   // camera
   updateCam();
-  if (state === 'title' || state === 'levels') { cam.x = CFG.W / 2 - VIEW_W / 2 | 0; cam.y = 330; }
+  if (state === 'title' || state === 'levels' || state === 'settings' || state === 'powers') { cam.x = CFG.W / 2 - VIEW_W / 2 | 0; cam.y = 330; }
   shx = G.shake > 0.5 ? Math.round(rand(-1, 1) * G.shake) : 0; shy = G.shake > 0.5 ? Math.round(rand(-1, 1) * G.shake) : 0;
 
   ctx.fillStyle = lvl().clear; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -2088,10 +2100,11 @@ function render() {
   if (touchUI && state === 'play') drawTouch();
   if (state === 'title') drawTitle();
   if (state === 'powers') drawPowersMenu();
+  if (state === 'settings') drawSettingsMenu();
   if (state === 'levels') drawLevelSelect();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
-  if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); }
+  if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); drawText(touchUI ? 'TAP TO RESUME' : 'P TO RESUME', VIEW_W / 2, VIEW_H / 2 + 20, '#bfe8ff', 1, 'c'); }
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     // bright arms with a dark outline so it reads on every background; the centre dot marks the exact aim point
@@ -2103,7 +2116,7 @@ function render() {
 }
 
 function drawHud() {
-  if (state === 'title' || state === 'levels') return;
+  if (state === 'title' || state === 'levels' || state === 'settings' || state === 'powers') return;
   const n = players.length;
   players.forEach((p, i) => {
     const y = 4 + i * 17, label = n > 1 ? 'P' + (i + 1) + ' INFECTION' : 'INFECTION';
@@ -2150,6 +2163,7 @@ function drawHud() {
       const br = breathY();
       drawText(br < -0.05 ? '< INHALE: PULLED UP' : br > 0.05 ? 'EXHALE: PUSHED DOWN >' : 'BREATHE', VIEW_W / 2, VIEW_H - 12, '#ffd0e8', 1, 'c');
     }
+    rect(3, VIEW_H - 63, 'PHASE 1/3'.length * FONT_ADV + 3, FONT_H + 3, '#000', 0.55);
     drawText('PHASE ' + G.phase + '/3', 4, VIEW_H - 62, ['#bfe8ff', '#ffd88a', '#ff9a8a'][G.phase - 1]);
     const hacked = G.fix.filter(f => f.hackN > 0);
     if (hacked.length) {   // loud banner: something is being attacked right now
@@ -2186,7 +2200,7 @@ function drawHud() {
     const lbl = organs.length ? 'ORGANS ' + organs.filter(o => o.team === 'i').length + '/' + organs.length : '';
     if (lbl) drawText(lbl, mx, my - 9, '#bfe8ff', 1, 'l');
   }
-  if (G.msgT > 0) {
+  if (G.msgT > 0 && state !== 'levelup' && state !== 'over') {   // not under the level-up / end screens
     const sc = G.msg.length * 12 + 12 > VIEW_W ? 1 : 2, w = G.msg.length * FONT_ADV * sc + 12, my = 54;   // below the HUD stack on the left   // long messages drop to small text so they fit narrow screens
     rect(VIEW_W / 2 - w / 2, my, w, FONT_H * sc + 4, '#000', 0.6);
     drawText(G.msg, VIEW_W / 2, my + 2, G.msg.includes('CLEANSED') || G.msg.includes('BACK') ? '#7fe8ff' : G.msg.includes('SWARM') || G.msg.includes('INFECTED!') && G.msg[0] === 'P' ? '#ffd060' : '#b8f070', sc, 'c');
@@ -2215,7 +2229,7 @@ function drawTouch() {
   const ring = (x, y, r, col, a) => {
     for (let i = 0; i < 40; i++) { const t = i / 40 * 6.283; rect(x + Math.cos(t) * r, y + Math.sin(t) * r, 1, 1, col, a); }
   };
-  for (const [k, hx, col] of [['move', 52, '#bfe8ff'], ['aim', VIEW_W - 52, '#ffc070']]) {
+  for (const [k, hx, col] of [['move', 112, '#bfe8ff'], ['aim', VIEW_W - 52, '#ffc070']]) {
     const st = touch[k];
     if (!st) { ring(hx, VIEW_H - 52, STICK_R, col, 0.22); drawText(k === 'move' ? 'MOVE' : 'AIM', hx, VIEW_H - 54, col, 1, 'c'); continue; }
     ring(st.ox, st.oy, STICK_R, col, 0.5);
@@ -2240,11 +2254,13 @@ function drawTouch() {
 
 const TBW = 94, TBH = 20;
 const tbtn = i => ({ x: i ? (i === 1 ? -98 : 4) : -47, y: VIEW_H - 76 + (i ? 1 : 0) * 24 });   // 1 PLAYER on top, the two online buttons below, anchored to the bottom
-const powBtn = () => ({ x: 4, y: 4, w: 66, h: 14 });
+const powBtn = () => VIEW_H < 220 ? { x: VIEW_W / 2 - 68, y: VIEW_H - 25, w: 66, h: 14 } : { x: 4, y: 4, w: 66, h: 14 };   // phones: one row under the main buttons, clear of the title
+const setBtn = () => VIEW_H < 220 ? { x: VIEW_W / 2 + 2, y: VIEW_H - 25, w: 66, h: 14 } : { x: 4, y: 22, w: 66, h: 14 };
 const powBackBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 24, w: 80, h: 14 });
 function titleBtnAt(mx, my) {
   const c = VIEW_W / 2;
   if (inRect(powBtn(), mx, my)) return 6;
+  if (inRect(setBtn(), mx, my)) return 7;
   for (let i = 0; i < 3; i++) { const b = tbtn(i); if (mx >= c + b.x && mx < c + b.x + TBW && my >= b.y && my < b.y + TBH) return i + 1; }
   return 0;
 }
@@ -2263,7 +2279,7 @@ function drawTitle() {
     ? ['LEFT STICK MOVES, RIGHT STICK AIMS', 'ONLINE CO-OP WORKS BETWEEN PHONES AND PCS']
     : ['1 PLAYER: WASD MOVE, MOUSE AIM, SPACE POKES', 'ONLINE CO-OP: HOST OR JOIN A ROOM WITH A 4-LETTER CODE'];
   lines.push(touchUI ? 'GET CLOSE, THEN TAP A GLOWING WEAK SPOT TO POKE IT' : 'GET CLOSE, THEN CLICK A GLOWING WEAK SPOT TO POKE IT', 'YOUR TAIL TURNS VIRUSES INTO ALLIES',
-    'PLAY THE 5-ORGAN CAMPAIGN OR ANY SINGLE LEVEL. SHOOTING IS A LEVEL-UP UNLOCK');
+    'PLAY THE CAMPAIGN OR ANY SINGLE LEVEL');
   if (compact) lines = [lines[0], lines[2], lines[4]];
   lines.forEach((t, i) => drawText(t, c, (compact ? 52 : 100) + i * (compact ? 10 : 9), i < (compact ? 1 : 2) ? '#fff' : '#ffd88a', 1, 'c'));
   const hov = titleBtnAt(mouse.sx, mouse.sy);
@@ -2272,6 +2288,11 @@ function drawTitle() {
     const b = tbtn(i), h = hov === i + 1 && !touchUI, x = c + b.x;
     rect(x - 1, b.y - 1, TBW + 2, TBH + 2, h ? '#ffe070' : '#4aa8ff'); rect(x, b.y, TBW, TBH, h ? '#243c78' : '#12204a');
     drawText(labels[i], x + TBW / 2, b.y + 6, '#fff', 1, 'c');
+  }
+  {
+    const b = setBtn(), h = hov === 7 && !touchUI;
+    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+    drawText('SETTINGS' + (touchUI ? '' : ' [S]'), b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
   }
   {
     const b = powBtn(), h = hov === 6 && !touchUI;
@@ -2284,11 +2305,11 @@ function drawTitle() {
     drawText(isFullscreen() ? 'WINDOWED' : 'FULLSCREEN', f.x + f.w / 2, f.y + 4, '#fff', 1, 'c');
   }
   const tip = touchUI && !fsSupported && !isStandalone() ? 'TIP: SHARE > ADD TO HOME SCREEN FOR FULLSCREEN' : '';
-  drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
+  drawText(titleMsg || tip || (touchUI ? '' : 'P PAUSES'), c, VIEW_H < 220 ? VIEW_H - 9 : VIEW_H - 26, titleMsg ? '#ff9a9a' : tip ? '#ffd88a' : '#8aa0d0', 1, 'c');
 }
 // level select: a campaign tile (the five organs in order) on top, one tile per single level below
 function levelTiles() {
-  const compact = VIEW_H < 220, c = VIEW_W / 2, gap = 6, tw = 96, th = compact ? 44 : 56, ch = compact ? 32 : 40;
+  const compact = VIEW_H < 220, c = VIEW_W / 2, gap = compact ? 4 : 6, tw = 96, th = compact ? 40 : 56, ch = compact ? 30 : 40;
   const top = compact ? 22 : 34, W = tw * 3 + gap * 2, out = [{ key: 'campaign', x: c - W / 2, y: top, w: W, h: ch }];
   LEVEL_SEL.slice(1).forEach((key, i) => out.push({ key, x: c - W / 2 + (i % 3) * (tw + gap), y: top + ch + gap + Math.floor(i / 3) * (th + gap), w: tw, h: th }));
   return out;
@@ -2330,6 +2351,30 @@ function drawLevelSelect() {
   rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
   drawText('BACK', b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
 }
+const SETTING_DEFS = [
+  { key: 'autoLevel', name: 'AUTO LEVEL-UP', info: ['PICKS UPGRADES FOR YOU SO THE GAME', 'NEVER STOPS. THE SHOOTING UNLOCK COMES FIRST'] },
+  { key: 'autoFire', name: 'AUTO FIRE', info: ['SHOOTING STARTS SWITCHED ON', 'F TURNS IT ON OR OFF DURING A RUN'] },
+];
+const settingRows = () => {
+  const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 34 : 40;
+  return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 34 : 50) + i * (h + 6), w, h }));
+};
+function toggleSetting(i) { const d = SETTING_DEFS[i]; if (!d) return; settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
+function drawSettingsMenu() {
+  rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
+  const c = VIEW_W / 2, compact = VIEW_H < 220;
+  drawText('SETTINGS', c, compact ? 6 : 10, '#9ae05a', compact ? 2 : 3, 'c');
+  settingRows().forEach((r, i) => {
+    const d = SETTING_DEFS[i], on = settings[d.key], h = !touchUI && inRect(r, mouse.sx, mouse.sy);
+    rect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, h ? '#ffe070' : on ? '#7fffd0' : '#4aa8ff'); rect(r.x, r.y, r.w, r.h, '#12204a');
+    drawText((touchUI ? '' : '[' + (i + 1) + '] ') + d.name, r.x + 6, r.y + 4, '#fff', 1, 'l');
+    drawText(on ? 'ON' : 'OFF', r.x + r.w - 6, r.y + 4, on ? '#7fffd0' : '#ff9a9a', 1, 'r');
+    d.info.forEach((t, j) => drawText(t, r.x + 6, r.y + 16 + j * 9, '#bfe8ff', 1, 'l'));
+  });
+  const b = powBackBtn(), h = !touchUI && inRect(b, mouse.sx, mouse.sy);
+  rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+  drawText('BACK', b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
+}
 function drawPowersMenu() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
   const c = VIEW_W / 2;
@@ -2342,7 +2387,7 @@ function drawPowersMenu() {
     const y = 44 + i * step, w = Math.min(VIEW_W - 24, 360), x = c - w / 2, h = step - 4;
     rect(x - 1, y - 1, w + 2, h + 2, r.on ? '#ffd24a' : '#303a58'); rect(x, y, w, h, r.on ? '#1c2448' : '#0c1020');
     drawText(r.on ? r.name : '??? ' + (r.tag ? 'SECRET' : r.name), x + 6, y + 3, r.on ? '#ffd24a' : '#6a7490', 1, 'l');
-    drawText(r.on ? (r.tag ? 'EARNED' : 'UNLOCKED') : 'LOCKED', x + w - 6, y + 3, r.on ? '#7fffd0' : '#ff9a9a', 1, 'r');
+    drawText(r.on ? (r.tag ? 'EARNED' : 'UNLOCKED') : 'LOCKED', x + w - 6 - (r.on && r.tag ? 18 : 0), y + 3, r.on ? '#7fffd0' : '#ff9a9a', 1, 'r');
     if (r.on) r.info.slice(0, compact ? 1 : 2).forEach((t, j) => drawText(t, x + 6, y + 13 + j * 9, '#bfe8ff', 1, 'l'));
     else drawText(r.lock, x + 6, y + 13, '#8aa0d0', 1, 'l');
     if (r.on && r.tag) ctx.drawImage(SPR.pet, Math.round(x + w - 22), Math.round(y + h / 2 - 6));
@@ -2358,12 +2403,13 @@ function drawLobby() {
   const c = VIEW_W / 2, hov = lobbyButtons().find(b => inRect(b, mouse.sx, mouse.sy));
   drawText('ONLINE CO-OP', c, 10, '#7fe8ff', 2, 'c');
   if (lobby.mode === 'host') {
-    drawText('YOUR ROOM CODE', c, 56, '#bfe8ff', 1, 'c');
-    drawText(lobby.code || '....', c, 70, '#ffe070', 5, 'c');
-    drawText('YOUR FRIEND PICKS JOIN ONLINE, TYPES THE CODE', c, 112, '#fff', 1, 'c');
-    drawText('OR SEND THEM THIS LINK:', c, 121, '#fff', 1, 'c');
-    drawText(location.host, c, 130, '#ffd88a', 1, 'c');
-    drawText('/?room=' + lobby.code, c, 139, '#ffd88a', 1, 'c');
+    const o = VIEW_H < 220 ? -14 : 0;   // phones: pull everything up so the status line clears the BACK button
+    drawText('YOUR ROOM CODE', c, 56 + o, '#bfe8ff', 1, 'c');
+    drawText(lobby.code || '....', c, 70 + o, '#ffe070', 5, 'c');
+    drawText('YOUR FRIEND PICKS JOIN ONLINE, TYPES THE CODE', c, 112 + o, '#fff', 1, 'c');
+    drawText('OR SEND THEM THIS LINK:', c, 121 + o, '#fff', 1, 'c');
+    drawText(location.host, c, 130 + o, '#ffd88a', 1, 'c');
+    drawText('/?room=' + lobby.code, c, 139 + o, '#ffd88a', 1, 'c');
   } else {
     drawText('ENTER ROOM CODE', c, 34, '#bfe8ff', 1, 'c');
     for (let i = 0; i < 4; i++) {
@@ -2378,7 +2424,7 @@ function drawLobby() {
     drawText(b.id, b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
   }
   const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
-  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 152 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
+  drawText(lobby.msg + (/WAIT|CONNECT/.test(lobby.msg) ? dots : ''), c, lobby.mode === 'host' ? (VIEW_H < 220 ? 142 : 168) : 168, /NO SUCH|FULL|LOST|LEFT|ENTER ALL|ERROR/.test(lobby.msg) ? '#ff9a9a' : '#7fffd0', 1, 'c');
 }
 
 const CARD = { w: 100, h: 84, gap: 4, y: 92 };
@@ -2419,7 +2465,7 @@ function drawOver() {
   const saved = organs.filter(o => o.team === 'i').length;
   [['TIME SURVIVED', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')], ['LEVEL', S.level], ['VIRUSES KILLED', G.kills], ['VIRUSES TURNED', G.conv], G.fix.length ? ['REPAIRS MADE', G.fixed || 0] : ['ORGANS SAVED', saved + '/5']]
     .forEach(([k, v], i) => { const y0 = VIEW_H < 220 ? 86 : 94; drawText(k, c - 10, y0 + i * 10, '#bfe8ff', 1, 'r'); drawText(v, c + 10, y0 + i * 10, '#fff'); });
-  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : more ? 'CLICK TO CONTINUE' : camp && !win ? 'CLICK TO RETRY' : 'CLICK TO TRY AGAIN', c, VIEW_H - 36, '#fff', isGuest() ? 1 : 2, 'c');
+  if (G.overT > 0.7 && Math.floor(performance.now() / 500) % 2) drawText(isGuest() ? 'WAITING FOR HOST TO RESTART' : (touchUI ? 'TAP' : 'CLICK') + (more ? ' TO CONTINUE' : camp && !win ? ' TO RETRY' : ' TO TRY AGAIN'), c, VIEW_H - (VIEW_H < 220 ? 40 : 36), '#fff', isGuest() ? 1 : 2, 'c');
   if (G.newPower && Math.floor(performance.now() / 300) % 4) drawText('NEW POWER UNLOCKED: ' + UPGRADES.find(u => u.id === G.newPower).name, c, VIEW_H - 50, '#ffd24a', 1, 'c');
   const b = menuBtn(), hov = !touchUI && inRect(b, mouse.sx, mouse.sy);
   rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, hov ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, hov ? '#243c78' : '#12204a');
