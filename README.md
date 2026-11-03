@@ -99,20 +99,29 @@ node tools/sim/run.js --mode camp --bots decent,perfect --n 60          # campai
 node tools/sim/diag.js lung perfect 1 1.4 1.35 7                        # one game's timeline: level bot P Ksab Karc seed
 ```
 
-Win rates with the shipped tuning (60 games each):
+Win rates with the shipped tuning (60 games each; the novice column is from the solo runs):
 
 | | novice | decent | perfect |
 |---|---|---|---|
-| Brain (solo, = campaign level 1) | 0% | 23% | 98% |
-| Lungs (solo) | 15% | 45% | 83% |
-| Heart (solo) | 7% | 36% | 98% |
-| Classic | 8% | 35% | 88% |
-| Campaign: Brain | 3% | 32% | 93% |
-| Campaign: Lungs (with carried upgrades) | 12% | 38% | 71% |
-| Campaign: Heart (with carried upgrades) | 2% | 48% | 91% |
+| Brain (solo) | 2% | 38% | 83% |
+| Lungs (solo) | 0% | 32% | 80% |
+| Heart (solo) | 3% | 23% | 95% |
+| Stomach (solo) | 12% | 22% | 83% |
+| Bloodstream (solo) | 17% | 40% | 70% |
+| Classic | - | 35% | 80% |
+| Campaign: Brain | - | 27% | 68% |
+| Campaign: Lungs (with carried upgrades) | - | 30% | 65% |
+| Campaign: Heart | - | 25% | 92% |
+| Campaign: Stomach | - | 33% | 60% |
+| Campaign: Bloodstream | - | 57% | 62% |
 
-The goal is decent ~30% and perfect ~100%. Brain and Heart reach it; Lungs does not: its outcome depends more on how fast
-the ally army snowballs than on player skill, so the bots stay close together there.
+The goal is decent ~30% and perfect as high as the bots allow. Saboteurs are deliberately tough (60 HP, a hack takes
+4.5 seconds but its progress fades slowly, allies only intercept them when close, and a third saboteur joins each wave
+late in a run): a player who ignores them loses the objective in about 80-100% of runs (check with an idle, immortal
+player: it loses the Brain/Lungs/Heart/Stomach levels almost every time and Bloodstream about three runs in four), so
+the general pressure (spawn / swarm / damage) was eased to keep the levels winnable for a player who does hunt them. The
+perfect bot's weakest spots are the Stomach and Bloodstream campaign levels and the Lungs, where a stronger player does
+not help much against the saboteur waves.
 
 ## Run locally
 ```bash

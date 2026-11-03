@@ -17,7 +17,7 @@ const TYPES = {
   toxin: { r: 4, hp: 8, speed: 50, dmg: 3, arc: 0.55, xp: 1, ally: 10, col: '#c03048' },   // bloodstream level: bred by clotted vessels
   ulcer: { r: 22, hp: 1000, speed: 26, dmg: 12, arc: 0.4, xp: 14, ally: 40, col: '#e08a30' },   // stomach boss: H. pylori, eats craters into the wall
   sepsis: { r: 22, hp: 1000, speed: 30, dmg: 11, arc: 0.4, xp: 14, ally: 40, col: '#a040b0' },   // bloodstream boss: sends saboteurs out to clot the vessels
-  saboteur: { r: 5, hp: 30, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
+  saboteur: { r: 5, hp: 60, speed: 48, dmg: 2, arc: 0.55, xp: 3, ally: 13, col: '#e050c0' },   // lung level: goes for the air sacs
 };
 const ORGANS = [
   { name: 'BRAIN', tag: 'BRN', x: 600,  y: 150 },
@@ -31,28 +31,28 @@ const LEVELS = {
   classic: { name: 'CLASSIC', time: 360, bg: 'bg', clear: '#12060b', edge: '#7a2a40', win: 'THE FEVER BROKE', intro: '', tune: { solo: { spawn: 1.35, swarm: 0.65, dmg: 0.65, hp: 0.85, arc: 1.35 } } },
   brain: { name: 'BRAIN', time: 300, bg: 'bgBrain', clear: '#08041a', edge: '#6a7aff', win: 'THE MIND IS CLEAR', intro: 'BRAIN: RELIGHT THE SYNAPSES. LIT ONES SPARK',
     txt: { bar: 'SIGNAL', warn: 'BLACKOUT IN', end: 'THE BRAIN WENT DARK', low: 'SIGNAL FAILING! RELIGHT THE SYNAPSES', sab: 'SABOTEURS! THEY JAM THE SYNAPSES', p2: 'THE DARKNESS DEEPENS!', p3: 'STORM! THE SYNAPSES CRACKLE FASTER' },
-    tune: { solo: { spawn: 0.56, swarm: 1.8, dmg: 1.8, hp: 1.34, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
+    tune: { solo: { spawn: 0.6, swarm: 1.7, dmg: 1.7, hp: 1.3, sab: 0.53, arc: 0.53, grace: 25 } },   // balanced with tools/sim; the first campaign level keeps a longer grace period
     ph: [120, 240], boss: 240, bossType: 'manflu',
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'POKE JAMMED SYNAPSES TO RELIGHT THEM'], [26, 'LIT SYNAPSES GIVE LIGHT. DARK ONES HIDE VIRUSES'], [40, 'POKED VIRUSES BECOME YOUR ALLIES']],
     web: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 3], [2, 4], [3, 4], [3, 5], [4, 6], [1, 5], [2, 6], [1, 4], [2, 3], [1, 2, -80], [5, 6, 70]],
     fix: [[600, 170, 'syn'], [290, 300, 'syn'], [910, 300, 'syn'], [430, 540, 'syn'], [770, 540, 'syn'], [250, 740, 'syn'], [950, 740, 'syn']] },
   lung: { name: 'LUNGS', time: 300, bg: 'bgLung', clear: '#1c0d1c', edge: '#5aa8b8', win: 'THE LUNGS BREATHE EASY', intro: 'LUNGS: KEEP THE AIR SACS OPEN',
     txt: { bar: 'OXYGEN', warn: 'COLLAPSE IN', end: 'THE LUNGS COLLAPSED', low: 'OXYGEN LOW! POKE THE SACS OPEN', sab: 'SABOTEURS! THEY CLOG THE AIR SACS', p2: 'SICK SACS SPIT FASTER! AVOID SLIME', p3: 'COUGHING FITS! BRACE YOURSELF' },
-    tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.33, arc: 0.48 }, camp: { spawn: 0.43, swarm: 2.3, dmg: 2.3, hp: 1.52, sab: 0.3, arc: 0.4 } },
+    tune: { solo: { spawn: 0.67, swarm: 1.5, dmg: 1.5, hp: 1.22, sab: 0.33, arc: 0.48 }, camp: { spawn: 0.45, swarm: 2.2, dmg: 2.2, hp: 1.48, sab: 0.3, arc: 0.4 } },
     fix: [[300, 250], [600, 200], [900, 250], [200, 480], [460, 470], [740, 470], [1000, 480], [360, 730], [840, 730]] },
   heart: { name: 'HEART', time: 300, bg: 'bgHeart', clear: '#14040a', edge: '#d04050', win: 'THE HEART BEATS STEADY', intro: 'HEART: KEEP THE RHYTHM, COOL THE FEVER',
     txt: { bar: 'RHYTHM', warn: 'ARREST IN', end: 'CARDIAC ARREST', low: 'RHYTHM FAILING! POKE THE VALVES', sab: 'SABOTEURS! THEY JAM THE VALVES', p2: 'FEVER SPIKES! WATCH THE STRIPES', p3: 'FEVER SURGES FROM THE CORE!' },
-    tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.29, arc: 0.43 }, camp: { spawn: 0.35, swarm: 2.85, dmg: 2.85, hp: 1.69, sab: 0.29, arc: 0.37 } },
+    tune: { solo: { spawn: 0.63, swarm: 1.6, dmg: 1.6, hp: 1.27, sab: 0.29, arc: 0.43 }, camp: { spawn: 0.38, swarm: 2.6, dmg: 2.6, hp: 1.61, sab: 0.29, arc: 0.37 } },
     fix: [[600, 170, 'pace'], [360, 440, 'valve'], [840, 440, 'valve'], [470, 720, 'valve'], [730, 720, 'valve']] },
   stomach: { name: 'STOMACH', time: 300, bg: 'bgStomach', clear: '#1c1206', edge: '#d0a030', win: 'THE STOMACH SETTLED', intro: 'STOMACH: KEEP THE GLANDS SEALED. SEALED GLANDS SHIELD FROM ACID',
     txt: { bar: 'MUCUS', warn: 'PERFORATION IN', end: 'THE STOMACH WALL GAVE WAY', low: 'MUCUS LOW! POKE THE GLANDS SEALED', sab: 'SABOTEURS! THEY ERODE THE GLANDS', p2: 'THE ACID RISES! STAY NEAR SEALED GLANDS', p3: 'ACID FLOOD! GET OFF THE FLOOR' },
-    tune: { solo: { spawn: 0.74, swarm: 1.35, dmg: 1.35, hp: 1.16, sab: 0.74, arc: 0.74 }, camp: { spawn: 0.36, swarm: 2.80, dmg: 2.80, hp: 1.67, sab: 0.36, arc: 0.36 } },
+    tune: { solo: { spawn: 0.74, swarm: 1.35, dmg: 1.35, hp: 1.16, sab: 0.74, arc: 0.74 }, camp: { spawn: 0.38, swarm: 2.65, dmg: 2.65, hp: 1.63, sab: 0.36, arc: 0.36 } },
     ph: [100, 200], boss: 200, bossType: 'ulcer',
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'ACID RISES FROM THE BOTTOM AND BURNS YOU'], [26, 'SEALED GLANDS PROTECT THE GROUND AROUND THEM']],
     fix: [[300, 200, 'gland'], [600, 170, 'gland'], [900, 200, 'gland'], [200, 470, 'gland'], [600, 450, 'gland'], [1000, 470, 'gland'], [360, 720, 'gland'], [840, 720, 'gland']] },
   blood: { name: 'BLOODSTREAM', time: 300, bg: 'bgBlood', clear: '#1a0610', edge: '#e04a6a', win: 'THE BLOOD IS CLEAN', intro: 'BLOODSTREAM: KEEP THE VESSELS OPEN. THE CURRENT CARRIES EVERYONE',
     txt: { bar: 'FLOW', warn: 'CIRCULATION LOSS IN', end: 'THE BLOOD STOPPED FLOWING', low: 'FLOW FAILING! CLEAR THE VESSELS', sab: 'SABOTEURS! THEY CLOT THE VESSELS', p2: 'THE CURRENT GROWS STRONGER!', p3: 'THE CURRENT SURGES BACK AND FORTH!' },
-    tune: { solo: { spawn: 0.95, swarm: 1.05, dmg: 1.05, hp: 1.02, sab: 0.95, arc: 0.95 }, camp: { spawn: 0.42, swarm: 2.40, dmg: 2.40, hp: 1.55, sab: 0.42, arc: 0.42 } },
+    tune: { solo: { spawn: 1.15, swarm: 0.87, dmg: 0.87, hp: 0.93, sab: 0.4, arc: 0.95 }, camp: { spawn: 0.42, swarm: 2.4, dmg: 2.4, hp: 1.55, sab: 0.28, arc: 0.42 } },
     ph: [100, 200], boss: 200, bossType: 'sepsis',
     hints: [[4, 'GET CLOSE, THEN CLICK OR TAP A WEAK SPOT'], [14, 'THE CURRENT PUSHES EVERYTHING ALONG ITS LANE'], [26, 'POKE CLOTTED VESSELS OPEN TO KEEP THE BLOOD FLOWING']],
     fix: [[250, 190, 'vessel'], [600, 120, 'vessel'], [950, 190, 'vessel'], [300, 450, 'vessel'], [900, 450, 'vessel'], [250, 710, 'vessel'], [600, 780, 'vessel'], [950, 710, 'vessel']] },
@@ -628,7 +628,7 @@ function chooseTarget(u) {
     return best || np;
   }
   if (G.fix.length) {   // allies go for saboteurs first: they are what wrecks the level
-    let sab = null, sd = 260;
+    let sab = null, sd = 170;
     for (const v of G.units) if (v.team === 'v' && v.type === 'saboteur' && !v.dead) { const d = dist(u, v); if (d < sd) { sd = d; sab = v; } }
     if (sab) return sab;
   }
@@ -637,10 +637,7 @@ function chooseTarget(u) {
   let best = null, bd = 300;
   for (const v of G.units) if (v.team === 'v' && !v.dead) { const d = dist(u, v); if (d < bd) { bd = d; best = v; } }
   if (best) return best;
-  bd = 500;
-  for (const o of organs) if (o.team === 'v') { const d = dist(u, o); if (d < bd) { bd = d; best = o; } }
-  if (best) return best;
-  const np = nearestPlayer(u);
+  const np = nearestPlayer(u);   // allies do not cure infected organs: that is the player's job
   return np && dist(u, np) > 50 ? np : null;
 }
 
@@ -648,7 +645,7 @@ function chooseTarget(u) {
 // You must be within reach, then click / tap the weak spot (or press the poke key / button for the nearest one).
 const reachOf = p => (S.reach + 6 * (S.scale - 1)) * (p && p.fx && p.fx.poke > 0 ? 1.5 : 1);
 const isOrgan = t => t.tag !== undefined;
-const canRepair = f => f.st > 0;                 // air sacs: players and allies repair them, viruses clog them
+const canRepair = f => f.st > 0;                 // air sacs: only players repair them, viruses clog them
 const canBreak = f => f.st < 2 && f.cd <= 0;
 const spotOf = t => ({ x: t.x + Math.cos(t.weakA) * t.r, y: t.y + Math.sin(t.weakA) * t.r });
 function pokeables() {
@@ -916,7 +913,7 @@ function fixStep(dt, alive) {
       if (!f.hacking) { f.hacking = true; sfx('charge', 330, 0.5, 'square', 0.03, -200); }
       f.hackP += dt * (1 + 0.6 * (f.hackN - 1)) / HACK_T;
       if (f.hackP >= 1) { clogFix(f); f.hacking = false; }
-    } else { f.hacking = false; f.hackP = Math.max(0, f.hackP - dt * 0.6); }
+    } else { f.hacking = false; f.hackP = Math.max(0, f.hackP - dt * 0.25); }
     f.hackN = 0;
     if (f.st === 0) {   // a healthy objective slowly produces an ally to help defend it
       f.allyMax = ALLY_T; f.allyT = (f.allyT == null ? rand(6, ALLY_T) : f.allyT) - dt;
@@ -931,7 +928,7 @@ function fixStep(dt, alive) {
   G.sabT -= dt;   // saboteurs
   if (G.sabT <= 0) {
     G.sabT = Math.max(6, 24 - G.t / 14) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
-    const n = 1 + (G.t > 150 ? 1 : 0);
+    const n = 1 + (G.t > 120 ? 1 : 0) + (G.t > 220 ? 1 : 0);
     for (let i = 0; i < n; i++) spawnVirus('saboteur');
     if (!G.sabSaid) { G.sabSaid = true; say(T.sab); }   // only the first wave is announced
   }
