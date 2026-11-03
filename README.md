@@ -12,7 +12,7 @@ organs, level up and survive 6 minutes. 1 player or online co-op (2 players, roo
 | Move | WASD / arrows | left stick |
 | Aim | mouse | right stick |
 | Poke weak spot | click it / Space | tap it |
-| Toggle shooting | F or right click | FIRE button |
+| Toggle shooting (hold to shoot if auto fire is off) | F or right click | FIRE button |
 | Pause | P / Esc | pause button |
 
 You start without a gun: **Antibody Shot** is a level-up unlock (offered on your first level-up), and Rapid / Split /
@@ -20,7 +20,8 @@ Strong Antibody upgrades only appear after it. **Mitosis** makes you swell and t
 per level), leaving you smaller until you grow back.
 
 **Settings** (title screen, `S`): *Auto level-up* picks upgrades for you so play is never interrupted (the Antibody Shot
-unlock is taken first), and *Auto fire* sets whether shooting starts switched on (`F` still toggles it in a run), and *Language* switches
+unlock is taken first), and *Auto fire* on shoots by itself (`F` still toggles it in a run); off means manual fire: you shoot only while holding
+the FIRE button (`F`, right mouse button, gamepad B, or the on-screen FIRE button), in any direction you aim, and *Language* switches
 between English (default), German, Italian, French and Spanish. All three are remembered in the browser.
 
 Translations live in `public/src/i18n.js`: the game text is written in English and looked up there (`tr()`; `drawText`

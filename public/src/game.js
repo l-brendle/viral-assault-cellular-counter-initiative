@@ -181,7 +181,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
 // floating virtual sticks: touch the left half to move, the right half to aim (auto fire)
-const touch = { move: null, aim: null };
+const touch = { move: null, aim: null, fire: null };   // fire: pointer holding the FIRE button (manual fire only)
 const STICK_R = 26;
 function stickVec(st, dead) {
   if (!st) return null;
@@ -230,8 +230,11 @@ function pokeNearestKey(idx) {   // key / on-screen button: poke whichever weak 
   if (!t) { tip(me.x, me.y - 14, 'NOTHING TO POKE'); return; }
   if (isGuest()) relay({ k: 'poke', nearest: true }); else tryPoke(me, t);
 }
+// Auto fire off in the settings = manual fire: you shoot only while holding FIRE (F, right mouse button, gamepad B or the on-screen button).
+// The host's setting counts for everyone; guests learn it from the snapshot.
+const manualFire = () => isGuest() ? !!G.manualFire : !settings.autoFire;
 function toggleFire(idx) {   // shooting on/off, per player (once unlocked)
-  if (!S.shoot) return;
+  if (!S.shoot || manualFire()) return;
   const me = isGuest() ? players[meIdx()] : players[idx];
   if (!me || me.down) return;
   if (isGuest()) { relay({ k: 'fire' }); tip(me.x, me.y - 14, me.autoFire ? 'FIRE OFF' : 'FIRE ON', '#ffd88a'); return; }
@@ -239,7 +242,7 @@ function toggleFire(idx) {   // shooting on/off, per player (once unlocked)
   tip(me.x, me.y - 14, me.autoFire ? 'FIRE ON' : 'FIRE OFF', '#ffd88a');
   sfx('fire', me.autoFire ? 600 : 300, 0.06, 'square', 0.02);
 }
-const fireBtn = () => ({ x: VIEW_W - 78, y: VIEW_H - 112, w: 54, h: 14 });
+const fireBtn = () => manualFire() ? { x: VIEW_W - 84, y: VIEW_H - 118, w: 60, h: 22 } : { x: VIEW_W - 78, y: VIEW_H - 112, w: 54, h: 14 };
 const pauseBtn = () => ({ x: VIEW_W - 18, y: 42, w: 14, h: 13 });
 const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 function doPause() { if (isGuest()) relay({ k: 'pause' }); else togglePause(); }
@@ -250,10 +253,10 @@ canvas.addEventListener('pointerdown', e => {
   if (fingers) touchUI = true;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
   if (state === 'play') {
-    if (!fingers) { if (e.button === 2) toggleFire(0); else pokeClick(false); return; }   // right click toggles shooting
+    if (!fingers) { if (e.button === 2) { mouse.rdown = true; toggleFire(0); } else pokeClick(false); return; }   // right click toggles shooting (or holds fire)
     if (inRect(pauseBtn(), mouse.sx, mouse.sy)) { doPause(); return; }
     if (fsAvail() && inRect(fsBtnPlay(), mouse.sx, mouse.sy)) { requestFs('toggle', e); return; }
-    if (S.shoot && inRect(fireBtn(), mouse.sx, mouse.sy)) { toggleFire(0); return; }
+    if (S.shoot && inRect(fireBtn(), mouse.sx, mouse.sy)) { if (manualFire()) touch.fire = e.pointerId; else toggleFire(0); return; }
     if (pokeClick(true)) return;   // a tap right on a weak spot pokes it instead of starting a stick
     const st = { id: e.pointerId, ox: mouse.sx, oy: mouse.sy, x: mouse.sx, y: mouse.sy };
     if (mouse.sx < VIEW_W / 2) { if (!touch.move) touch.move = st; } else if (!touch.aim) touch.aim = st;
@@ -267,7 +270,7 @@ canvas.addEventListener('pointerdown', e => {
   else if (state === 'levels') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const t = levelTiles().find(t => inRect(t, mouse.sx, mouse.sy)); if (t) pickLevel(t.key); } }
   else if (state === 'lobby') lobbyTap();
   else if (state === 'powers') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; }
-  else if (state === 'settings') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const i = settingRows().findIndex(r => inRect(r, mouse.sx, mouse.sy)); if (i >= 0) toggleSetting(i); } }
+  else if (state === 'settings') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const i = settingRows().findIndex(r => inRect(r, mouse.sx, mouse.sy)); if (i >= 0) { if (SETTING_DEFS[i].key !== 'lang') toggleSetting(i); else { const a = langArrows(settingRows()[i]); if (inRect(a.prev, mouse.sx, mouse.sy)) toggleSetting(i, -1); else if (inRect(a.next, mouse.sx, mouse.sy)) toggleSetting(i, 1); } } } }
   else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
@@ -280,6 +283,8 @@ canvas.addEventListener('pointermove', e => {
 const endPointer = e => {
   if (fsPending && e.pointerType !== 'mouse') { const m = fsPending; fsPending = null; setFullscreen(m); }
   for (const k of ['move', 'aim']) if (touch[k] && touch[k].id === e.pointerId) touch[k] = null;
+  if (touch.fire === e.pointerId) touch.fire = null;
+  if (e.pointerType === 'mouse' && e.button === 2) mouse.rdown = false;
 };
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
@@ -328,7 +333,7 @@ function onKey(k) {
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); else if (k === 's') titleChoice(7); }
-  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); else if (k === '3') toggleSetting(2); }
+  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); else if (k === '3' || k === 'arrowright') toggleSetting(2, 1); else if (k === 'arrowleft') toggleSetting(2, -1); }
   else if (state === 'levels') { if (k === 'escape' || k === 'backspace') state = 'title'; else if (k >= '1' && k <= '7') pickLevel(LEVEL_SEL[+k - 1]); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
@@ -343,7 +348,7 @@ function gamepads() { try { return [...navigator.getGamepads()].filter(Boolean);
 // WASD / arrows + mouse, or the first gamepad. (Online co-op: the other player is remote.)
 function readInput(p) {
   const K = k => keys[k] ? 1 : 0;
-  let mx = 0, my = 0, aim = null, poke = false, toggle = false;
+  let mx = 0, my = 0, aim = null, poke = false, toggle = false, fire = !!keys['f'] || !!mouse.rdown || touch.fire !== null;
   mx = K('d') - K('a') + K('arrowright') - K('arrowleft'); my = K('s') - K('w') + K('arrowdown') - K('arrowup');
   const pad = gamepads()[0];
   if (pad) {
@@ -352,7 +357,7 @@ function readInput(p) {
     const down = !!(pad.buttons[0] && pad.buttons[0].pressed);
     poke = down && !p.padDown; p.padDown = down;
     const down2 = !!(pad.buttons[1] && pad.buttons[1].pressed);
-    toggle = down2 && !p.padDown2; p.padDown2 = down2;   // button B / circle toggles shooting   // button A / cross pokes the nearest weak spot
+    toggle = down2 && !p.padDown2; p.padDown2 = down2; if (down2) fire = true;   // button B / circle toggles shooting   // button A / cross pokes the nearest weak spot
     const rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0);
     if (rx || ry) aim = Math.atan2(ry, rx);
   }
@@ -361,7 +366,7 @@ function readInput(p) {
     if (m) { mx += m.x; my += m.y; }
     if (a && a.l > 0) aim = Math.atan2(a.y, a.x);
   }
-  return { mx, my, aim, poke, toggle };
+  return { mx, my, aim, poke, toggle, fire };
 }
 
 // ---------------------------------------------------------------- state
@@ -1149,7 +1154,7 @@ function update(dt) {
     else if (p.scheme === 0 && !p.remote && mouse.moved) p.aim = Math.atan2(mouse.sy + cam.y - p.y, mouse.sx + cam.x - p.x);
     else if (ne) p.aim = Math.atan2(ne.y - p.y, ne.x - p.x);
     p.fireCd -= dt;
-    if (p.fireCd <= 0 && ne && p.autoFire && S.shoot) {
+    if (p.fireCd <= 0 && (manualFire() ? p.inp.fire : ne && p.autoFire) && S.shoot) {
       p.fireCd = 1 / S.fireRate;
       for (let i = 0; i < S.shots; i++) {
         const a = p.aim + (i - (S.shots - 1) / 2) * 0.17;
@@ -2148,10 +2153,14 @@ function drawHud() {
   rect(4, xy + 1, Math.round(80 * S.xp / S.next), 3, '#38b8ff');
   drawText('LV ' + S.level + '  RES ' + Math.round(S.res * 100) + '%', 4, xy + 8, '#bfe8ff');
   const keyHint = touchUI ? '' : ' [F]';
-  if (S.shoot) drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + tr('FIRE ' + (p.autoFire ? 'ON' : 'OFF'))).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
+  const fireLine = S.shoot && !(manualFire() && touchUI);   // phones show the FIRE button instead of a status line
+  if (fireLine) {
+    if (manualFire()) drawText('HOLD [F] TO FIRE', 4, xy + 17, '#ffd88a');
+    else drawText(players.map((p, i) => (n > 1 ? 'P' + (i + 1) + ' ' : '') + tr('FIRE ' + (p.autoFire ? 'ON' : 'OFF'))).join('  ') + keyHint, 4, xy + 17, players.every(p => p.autoFire) ? '#7fffd0' : '#ffd88a');
+  }
   {   // active medicine effects
     const locals = isGuest() ? [players[meIdx()]] : net ? [players[0]] : players;
-    let by = xy + 17 + (S.shoot ? 9 : 0);
+    let by = xy + 17 + (fireLine ? 9 : 0);
     for (const p of locals) {
       if (!p) continue;
       const list = [['speed', 'SPEED'], ['shield', 'SHIELD'], ['poke', 'POKE+'], ['bloat', 'BIG'], ['slow', 'SLOW']].filter(([k]) => p.fx[k] > 0).map(([k, nm]) => tr(nm) + ' ' + Math.ceil(p.fx[k]));
@@ -2258,9 +2267,9 @@ function drawTouch() {
     rect(st.ox + v.x * STICK_R - 3, st.oy + v.y * STICK_R - 3, 7, 7, col, 0.8);
   }
   if (S.shoot) {   // FIRE toggle button
-    const b = fireBtn(), me = isGuest() ? players[meIdx()] : players[0], on = !me || me.autoFire;
-    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, on ? '#7fffd0' : '#ff9a9a', 0.7); rect(b.x, b.y, b.w, b.h, '#12204a', 0.85);
-    drawText(on ? 'FIRE ON' : 'FIRE OFF', b.x + b.w / 2, b.y + 4, on ? '#7fffd0' : '#ff9a9a', 1, 'c');
+    const b = fireBtn(), me = isGuest() ? players[meIdx()] : players[0], manual = manualFire(), on = manual ? touch.fire !== null : !me || me.autoFire;
+    rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, on ? '#7fffd0' : manual ? '#ffd88a' : '#ff9a9a', 0.7); rect(b.x, b.y, b.w, b.h, on && manual ? '#1c4a5a' : '#12204a', 0.85);
+    drawText(manual ? 'FIRE' : on ? 'FIRE ON' : 'FIRE OFF', b.x + b.w / 2, b.y + (manual ? 7 : 4), on ? '#7fffd0' : manual ? '#ffd88a' : '#ff9a9a', manual ? 1 : 1, 'c');
   }
   if (fsAvail()) {   // fullscreen toggle: four corner brackets
     const f = fsBtnPlay();
@@ -2375,14 +2384,16 @@ function drawLevelSelect() {
 }
 const SETTING_DEFS = [
   { key: 'autoLevel', name: 'AUTO LEVEL-UP', info: 'PICKS UPGRADES FOR YOU SO THE GAME NEVER STOPS. THE SHOOTING UNLOCK COMES FIRST' },
-  { key: 'autoFire', name: 'AUTO FIRE', info: 'SHOOTING STARTS SWITCHED ON. F TURNS IT ON OR OFF DURING A RUN' },
+  { key: 'autoFire', name: 'AUTO FIRE', info: 'ON: SHOOTS BY ITSELF, F TOGGLES. OFF: HOLD FIRE TO SHOOT (F, RIGHT CLICK)' },
   { key: 'lang', name: 'LANGUAGE', info: 'CHANGE THE GAME LANGUAGE' },
 ];
 const settingRows = () => {
   const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 34 : 40;
   return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 34 : 50) + i * (h + 6), w, h }));
 };
-function toggleSetting(i) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + 1) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
+function toggleSetting(i, dir = 1) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + dir + LANGS.length) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
+// the language row cycles with arrows: [<] NAME [>] at the right end of the row (click either arrow, or use the left / right keys)
+const langArrows = r => ({ prev: { x: r.x + r.w - 92, y: r.y, w: 52, h: 14 }, next: { x: r.x + r.w - 40, y: r.y, w: 40, h: 14 }, mid: r.x + r.w - 6 - 12 - 24 });
 function drawSettingsMenu() {
   rect(0, 0, VIEW_W, VIEW_H, '#000', 0.8);
   const c = VIEW_W / 2, compact = VIEW_H < 220;
@@ -2391,7 +2402,10 @@ function drawSettingsMenu() {
     const d = SETTING_DEFS[i], isLang = d.key === 'lang', on = !isLang && settings[d.key], h = !touchUI && inRect(r, mouse.sx, mouse.sy);
     rect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, h ? '#ffe070' : on ? '#7fffd0' : '#4aa8ff'); rect(r.x, r.y, r.w, r.h, '#12204a');
     drawText((touchUI ? '' : '[' + (i + 1) + '] ') + d.name, r.x + 6, r.y + 4, '#fff', 1, 'l');
-    drawText(isLang ? LANGS[LANG].name : on ? 'ON' : 'OFF', r.x + r.w - 6, r.y + 4, isLang ? '#ffe070' : on ? '#7fffd0' : '#ff9a9a', 1, 'r');
+    if (isLang) {
+      const a = langArrows(r), hp = !touchUI && inRect(a.prev, mouse.sx, mouse.sy), hn = !touchUI && inRect(a.next, mouse.sx, mouse.sy);
+      drawText('<', a.mid - 31, r.y + 4, hp ? '#ffe070' : '#8aa0d0', 1, 'l'); drawText(LANGS[LANG].name, a.mid, r.y + 4, '#ffe070', 1, 'c'); drawText('>', r.x + r.w - 6, r.y + 4, hn ? '#ffe070' : '#8aa0d0', 1, 'r');
+    } else drawText(on ? 'ON' : 'OFF', r.x + r.w - 6, r.y + 4, on ? '#7fffd0' : '#ff9a9a', 1, 'r');
     wrapText(d.info, Math.floor((r.w - 12) / FONT_ADV)).slice(0, 2).forEach((t, j) => drawText(t, r.x + 6, r.y + 16 + j * 9, '#bfe8ff', 1, 'l'));
   });
   const b = powBackBtn(), h = !touchUI && inRect(b, mouse.sx, mouse.sy);
@@ -2565,7 +2579,7 @@ function handleNet(m) {
   else if (m.t === 'relay') {
     const d = m.d;
     if (net.role === 'host') {
-      if (d.k === 'in' && players[1]) players[1].netInp = { mx: +d.mx || 0, my: +d.my || 0, aim: d.aim == null ? null : +d.aim };
+      if (d.k === 'in' && players[1]) players[1].netInp = { mx: +d.mx || 0, my: +d.my || 0, aim: d.aim == null ? null : +d.aim, fire: !!d.fh };
       else if (d.k === 'pick' && state === 'levelup') chooseUpgrade(d.i | 0);
       else if (d.k === 'pause') togglePause();
       else if (d.k === 'fire' && players[1]) players[1].autoFire = !players[1].autoFire;
@@ -2579,7 +2593,7 @@ function hostSend(dt) {
   net.snapT -= dt;
   if (net.snapT > 0) return;
   net.snapT = 0.05;   // 20 snapshots / second
-  relay({ k: 'snap', lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0), r2(f.hackP), f.hackN, r1(f.allyT || 0), f.allyMax || 0]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
+  relay({ k: 'snap', mf: settings.autoFire ? 0 : 1, lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0), r2(f.hackP), f.hackN, r1(f.allyT || 0), f.allyMax || 0]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)], r2(Math.max(0, p.pokeCd))]),
     og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
@@ -2600,7 +2614,7 @@ function applySnap(d) {
   const prevState = state;
   state = d.st;
   if (state === 'over' && prevState !== 'over') G.overT = 0;
-  G.t = d.t; G.kills = d.kills; G.conv = d.conv; G.msg = d.msg; G.msgT = d.msgT; G.shake = Math.max(G.shake, d.sh); G.result = d.res; G.reason = d.why;
+  G.manualFire = !!d.mf; G.t = d.t; G.kills = d.kills; G.conv = d.conv; G.msg = d.msg; G.msgT = d.msgT; G.shake = Math.max(G.shake, d.sh); G.result = d.res; G.reason = d.why;
   S = d.S; choices = d.ch.map(id => UPGRADES.find(u => u.id === id)).filter(Boolean);
   const me = meIdx();
   d.pl.forEach((a, i) => {
@@ -2702,7 +2716,7 @@ function guestTick(dt) {
     mine.inp = inp;
     if (inp.poke) pokeNearestKey(0);
     if (inp.toggle) toggleFire(0);
-    relay({ k: 'in', mx: r2(inp.mx), my: r2(inp.my), aim: inp.aim === null ? null : r2(inp.aim) });
+    relay({ k: 'in', mx: r2(inp.mx), my: r2(inp.my), aim: inp.aim === null ? null : r2(inp.aim), fh: inp.fire ? 1 : 0 });
   }
 }
 
@@ -2712,7 +2726,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state === 'play' && !isGuest() && (document.hidden || (isTouch && innerHeight > innerWidth))) state = 'paused';
-  if (state !== 'play' && (touch.move || touch.aim)) touch.move = touch.aim = null;
+  if (state !== 'play' && (touch.move || touch.aim || touch.fire !== null)) { touch.move = touch.aim = null; touch.fire = null; mouse.rdown = false; }
   syncAudio();
   if (isGuest()) guestTick(dt);
   else { if (state === 'play') update(dt); syncAudio(); hostSend(dt); }
