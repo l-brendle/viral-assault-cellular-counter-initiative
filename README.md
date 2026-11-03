@@ -34,10 +34,10 @@ Gamepad: left stick move, right stick aim, A pokes, B toggles shooting.
 
 ## Levels
 Pick the level on the title screen (**L** or the LEVEL button). Online co-op uses the host's level.
-- **Campaign** (default) - Brain, Lungs, Heart, Stomach, then Bloodstream. Your upgrades and level carry over to the next organ. A win
+- **Campaign** (default) - Classic, Brain, Lungs, Heart, Stomach, then Bloodstream. Your upgrades and level carry over to the next organ. A win
   takes you on, a loss retries that organ, and the final win starts the campaign again. In online co-op the guest
   follows the host from level to level.
-- **Classic** - defend five organs for 6 minutes.
+- **Classic** - defend five organs for 6 minutes (only you can cure an infected organ). It opens the campaign.
 - **Brain** (5 minutes) - seven synapses linked by neuron lines. Saboteurs jam them (lit -> dim -> dark); poke them
   back. The level is **dark**: only you, your allies and lit synapses give light, so dark synapses leave corners where
   viruses hide. Active (lit) synapses regularly **spark lightning** (a faint line charges for a moment, then the bolt
@@ -45,7 +45,7 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   Sick synapses stop sparking and breed **spark** enemies instead. Phase 2 (1:30) is darker, phase 3 (3:20) makes the
   synapses crackle much faster. The darkness follows the **signal** bar (average synapse health: lit 100%, dim 50%, dark
   0%). The red tick on the bar is the 15% line: stay below it for 25 seconds (15 in the other levels) and the brain goes
-  dark and you lose. This is the first campaign level, so it has a longer grace period and a few on-screen tips.
+  dark and you lose. It has a longer grace period and a few on-screen tips.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
   weak spot to repair one step (repairing is the player's job; allies hunt saboteurs and fight instead). Fewer open sacs means less oxygen: you move slower and shake off
@@ -68,7 +68,8 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   stays safe. Eroded glands breed little **H. pylori**. The boss is the **Ulcer**: it eats acid craters into the wall as it
   moves and fires a ring of acid balls (the gaps between them are safe).
 
-- **Bloodstream** (5 minutes) - eight vessels that saboteurs clot. The map is four **lanes** with a current flowing in
+- **Bloodstream** (5 minutes) - eight vessels that saboteurs clot. The map is four **canals** separated by vessel walls
+  (they stop you, viruses, allies and shots; only the gaps let you through) with a current flowing in
   alternating directions that carries you, allies and viruses along; it grows stronger in phase 2 and swings back and forth
   in phase 3. Clotted vessels breed **toxins**. The boss is **Sepsis**: it sheds saboteurs that go for the vessels and
   shoots clots at you.
@@ -99,7 +100,8 @@ node tools/sim/run.js --mode camp --bots decent,perfect --n 60          # campai
 node tools/sim/diag.js lung perfect 1 1.4 1.35 7                        # one game's timeline: level bot P Ksab Karc seed
 ```
 
-Win rates with the shipped tuning (60 games each; the novice column is from the solo runs):
+Win rates with the shipped tuning (roughly; 40-60 games each, so single numbers move by about 10 points). The solo rows were
+measured before Classic became the first campaign level and before the Bloodstream canals; the campaign rows after:
 
 | | novice | decent | perfect |
 |---|---|---|---|
@@ -107,21 +109,21 @@ Win rates with the shipped tuning (60 games each; the novice column is from the 
 | Lungs (solo) | 0% | 32% | 80% |
 | Heart (solo) | 3% | 23% | 95% |
 | Stomach (solo) | 12% | 22% | 83% |
-| Bloodstream (solo) | 17% | 40% | 70% |
-| Classic | - | 35% | 80% |
-| Campaign: Brain | - | 27% | 68% |
-| Campaign: Lungs (with carried upgrades) | - | 30% | 65% |
-| Campaign: Heart | - | 25% | 92% |
-| Campaign: Stomach | - | 33% | 60% |
-| Campaign: Bloodstream | - | 57% | 62% |
+| Bloodstream (solo, canals) | 8% | 40% | 40% |
+| Campaign: Classic (level 1) | - | 40% | 58% |
+| Campaign: Brain | - | 28% | 78% |
+| Campaign: Lungs (with carried upgrades) | - | 33% | 90% |
+| Campaign: Heart | - | 23% | 98% |
+| Campaign: Stomach | - | 40% | 70% |
+| Campaign: Bloodstream | - | ~45% | ~40% |
 
 The goal is decent ~30% and perfect as high as the bots allow. Saboteurs are deliberately tough (60 HP, a hack takes
 4.5 seconds but its progress fades slowly, allies only intercept them when close, and a third saboteur joins each wave
 late in a run): a player who ignores them loses the objective in about 80-100% of runs (check with an idle, immortal
 player: it loses the Brain/Lungs/Heart/Stomach levels almost every time and Bloodstream about three runs in four), so
 the general pressure (spawn / swarm / damage) was eased to keep the levels winnable for a player who does hunt them. The
-perfect bot's weakest spots are the Stomach and Bloodstream campaign levels and the Lungs, where a stronger player does
-not help much against the saboteur waves.
+bots are weakest in the Bloodstream canals (they steer through the wall gaps, but not as well as a person would), so
+the perfect bot barely beats the decent one there.
 
 ## Run locally
 ```bash

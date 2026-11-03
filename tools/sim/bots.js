@@ -103,8 +103,8 @@ function makeBot(name, seed, extra) {
       if (cur && best && cur !== best && cur.v * 1.4 >= best.v) best = cur;
       goal = best;
       if (best) {
-        const dx = best.x - P.x, dy = best.y - P.y, l = Math.hypot(dx, dy) || 1;
-        const inReach = best.sx !== undefined ? Math.hypot(best.sx - P.x, best.sy - P.y) < reach * 0.75 : (best.kind === 'fix' && l < reach * 0.75);
+        const rp = d.route(P.x, P.y, best.x, best.y), dx = rp.x - P.x, dy = rp.y - P.y, l = Math.hypot(dx, dy) || 1;   // blood: through the gaps in the vessel walls
+        const inReach = best.sx !== undefined ? Math.hypot(best.sx - P.x, best.sy - P.y) < reach * 0.75 : (best.kind === 'fix' && Math.hypot(best.x - P.x, best.y - P.y) < reach * 0.75);
         if (inReach) stop = true; else { gx = dx / l; gy = dy / l; }
       } else {
         // nothing to do: drift toward the middle of the action (lit synapses / the player's allies)
