@@ -270,11 +270,16 @@ canvas.addEventListener('pointerdown', e => {
   else if (state === 'levels') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const t = levelTiles().find(t => inRect(t, mouse.sx, mouse.sy)); if (t) pickLevel(t.key); } }
   else if (state === 'lobby') lobbyTap();
   else if (state === 'powers') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; }
-  else if (state === 'settings') { if (inRect(powBackBtn(), mouse.sx, mouse.sy)) state = 'title'; else { const i = settingRows().findIndex(r => inRect(r, mouse.sx, mouse.sy)); if (i >= 0) { if (SETTING_DEFS[i].key !== 'lang') toggleSetting(i); else { const a = langArrows(settingRows()[i]); if (inRect(a.prev, mouse.sx, mouse.sy)) toggleSetting(i, -1); else if (inRect(a.next, mouse.sx, mouse.sy)) toggleSetting(i, 1); } } } }
+  else if (state === 'settings') settingsTap();
   else if (state === 'over' && G.overT > 0.3 && inRect(menuBtn(), mouse.sx, mouse.sy)) toMenu();
   else if (state === 'over' && G.overT > 0.7 && !isGuest()) overContinue();
   else if (state === 'levelup') { const i = cardAt(mouse.sx, mouse.sy); if (i >= 0) pickUpgrade(i); }
-  else if (state === 'paused') doPause();
+  else if (state === 'paused') {
+    if (pauseSettings) settingsTap();
+    else if (inRect(pauseBtns().set, mouse.sx, mouse.sy)) pauseSettings = true;
+    else if (inRect(pauseBtns().menu, mouse.sx, mouse.sy)) toMenu();
+    else doPause();   // a tap anywhere else resumes
+  }
 });
 canvas.addEventListener('pointermove', e => {
   toView(e);
@@ -324,7 +329,7 @@ function pickLevel(key) {
   else { lobby = { mode: 'host', code: '', msg: 'CONNECTING...' }; state = 'lobby'; netConnect('host'); }
 }
 function pickUpgrade(i) { if (isGuest()) relay({ k: 'pick', i }); else chooseUpgrade(i); }
-function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
+function togglePause() { pauseSettings = false; if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
 function onKey(k) {
   if (state === 'lobby') {
     if (k === 'escape') lobbyPress('BACK');
@@ -333,7 +338,7 @@ function onKey(k) {
     else if (k.length === 1 && CODE_KEYS.includes(k.toUpperCase())) lobbyPress(k.toUpperCase());
   }
   else if (state === 'title') { if (k === '1' || k === 'enter' || k === ' ') titleChoice(1); else if ('23'.includes(k) && k) titleChoice(+k); else if (k === 'p') titleChoice(6); else if (k === 's') titleChoice(7); }
-  else if (state === 'settings') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') state = 'title'; else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1); else if (k === '3' || k === 'arrowright') toggleSetting(2, 1); else if (k === 'arrowleft') toggleSetting(2, -1); }
+  else if (state === 'settings' || (state === 'paused' && pauseSettings)) settingsKey(k);
   else if (state === 'levels') { if (k === 'escape' || k === 'backspace') state = 'title'; else if (k >= '1' && k <= '7') pickLevel(LEVEL_SEL[+k - 1]); }
   else if (state === 'powers') { if (k === 'escape' || k === 'enter' || k === ' ' || k === 'p') state = 'title'; }
   else if (state === 'over' && G.overT > 0.3 && (k === 'm' || k === 'escape')) toMenu();
@@ -341,6 +346,8 @@ function onKey(k) {
   else if (state === 'levelup' && '123'.includes(k) && k) pickUpgrade(+k - 1);
   else if (state === 'play' && k === ' ') pokeNearestKey(0);
   else if (state === 'play' && k === 'f') toggleFire(0);
+  else if (state === 'paused' && k === 's') pauseSettings = true;
+  else if (state === 'paused' && k === 'm') toMenu();
   else if (k === 'p' || k === 'escape') doPause();
 }
 function gamepads() { try { return [...navigator.getGamepads()].filter(Boolean); } catch (e) { return []; } }
@@ -371,6 +378,7 @@ function readInput(p) {
 
 // ---------------------------------------------------------------- state
 let state = 'title';
+let pauseSettings = false;   // the settings screen opened from the pause menu (the run stays frozen underneath)
 let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 
 // player settings (kept in localStorage): auto level-up picks upgrades by itself so play is never interrupted,
@@ -430,8 +438,10 @@ function startGame(co) {
   if (net && net.role === 'host') players[1].remote = true;
   state = 'play'; sfx('start', 300, 0.25, 'square', 0.04, 400);
 }
+const menuLabel = () => tr('MENU') + (touchUI ? '' : ' [M]');
+const pauseBtns = () => { const ws = btnW(setLabel()), wm = btnW(menuLabel()), y = VIEW_H / 2 + 22; return { set: { x: VIEW_W / 2 - 2 - ws, y, w: ws, h: 14 }, menu: { x: VIEW_W / 2 + 2, y, w: wm, h: 14 } }; };
 const menuBtn = () => ({ x: VIEW_W / 2 - 40, y: VIEW_H - 19, w: 80, h: 14 });
-function toMenu() { camp = null; netDown(''); }   // back to the title screen (also leaves an online game)
+function toMenu() { camp = null; pauseSettings = false; netDown(''); }   // back to the title screen (also leaves an online game)
 // after a round: campaign win -> next organ (carrying the upgrades), loss -> retry that organ, final win -> start over
 function overContinue() {
   if (camp && G.result === 'win') { if (camp.i < CAMPAIGN.length - 1) { camp.i++; camp.S0 = JSON.parse(JSON.stringify(S)); } else camp = null; }
@@ -2128,7 +2138,18 @@ function render() {
   if (state === 'levels') drawLevelSelect();
   if (state === 'levelup') drawLevelUp();
   if (state === 'over') drawOver();
-  if (state === 'paused') { rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, '#fff', 3, 'c'); drawText(touchUI ? 'TAP TO RESUME' : 'P TO RESUME', VIEW_W / 2, VIEW_H / 2 + 20, '#bfe8ff', 1, 'c'); }
+  if (state === 'paused') {
+    if (pauseSettings) drawSettingsMenu();
+    else {
+      rect(0, 0, VIEW_W, VIEW_H, '#000', 0.5); drawText('PAUSED', VIEW_W / 2, VIEW_H / 2 - 22, '#fff', 3, 'c'); drawText(touchUI ? 'TAP TO RESUME' : 'P TO RESUME', VIEW_W / 2, VIEW_H / 2 + 4, '#bfe8ff', 1, 'c');
+      const pb = pauseBtns();
+      for (const [b, label] of [[pb.set, setLabel()], [pb.menu, menuLabel()]]) {
+        const h = !touchUI && inRect(b, mouse.sx, mouse.sy);
+        rect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, h ? '#ffe070' : '#4aa8ff'); rect(b.x, b.y, b.w, b.h, h ? '#243c78' : '#12204a');
+        drawText(label, b.x + b.w / 2, b.y + 4, '#fff', 1, 'c');
+      }
+    }
+  }
   if (state === 'play' && mouse.moved && !touchUI) { // crosshair (player 1 aims with the mouse)
     const mx = Math.round(mouse.sx), my = Math.round(mouse.sy);
     // bright arms with a dark outline so it reads on every background; the centre dot marks the exact aim point
@@ -2391,6 +2412,20 @@ const settingRows = () => {
   const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 34 : 40;
   return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 34 : 50) + i * (h + 6), w, h }));
 };
+function settingsBack() { if (pauseSettings) pauseSettings = false; else state = 'title'; }
+function settingsTap() {
+  if (inRect(powBackBtn(), mouse.sx, mouse.sy)) { settingsBack(); return; }
+  const i = settingRows().findIndex(r => inRect(r, mouse.sx, mouse.sy));
+  if (i < 0) return;
+  if (SETTING_DEFS[i].key !== 'lang') { toggleSetting(i); return; }
+  const a = langArrows(settingRows()[i]);
+  if (inRect(a.prev, mouse.sx, mouse.sy)) toggleSetting(i, -1); else if (inRect(a.next, mouse.sx, mouse.sy)) toggleSetting(i, 1);
+}
+function settingsKey(k) {
+  if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') settingsBack();
+  else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1);
+  else if (k === '3' || k === 'arrowright') toggleSetting(2, 1); else if (k === 'arrowleft') toggleSetting(2, -1);
+}
 function toggleSetting(i, dir = 1) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + dir + LANGS.length) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
 // the language row cycles with arrows: [<] NAME [>] at the right end of the row (click either arrow, or use the left / right keys)
 const langArrows = r => ({ prev: { x: r.x + r.w - 92, y: r.y, w: 52, h: 14 }, next: { x: r.x + r.w - 40, y: r.y, w: 40, h: 14 }, mid: r.x + r.w - 6 - 12 - 24 });

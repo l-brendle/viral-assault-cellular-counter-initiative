@@ -15,6 +15,8 @@ organs, level up and survive 6 minutes. 1 player or online co-op (2 players, roo
 | Toggle shooting (hold to shoot if auto fire is off) | F or right click | FIRE button |
 | Pause | P / Esc | pause button |
 
+The pause menu has **Settings** (`S`) and **Menu** (`M`, back to the title screen; this ends an online game).
+
 You start without a gun: **Antibody Shot** is a level-up unlock (offered on your first level-up), and Rapid / Split /
 Strong Antibody upgrades only appear after it. **Mitosis** makes you swell and then split off child allies (one more
 per level), leaving you smaller until you grow back.
