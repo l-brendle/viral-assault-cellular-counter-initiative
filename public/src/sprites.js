@@ -80,6 +80,53 @@ function makeBlob(o) {
   return c;
 }
 
+// A cartoon organ, 40x40: a silhouette (a function that says which pixels are inside), shaded from the top left, a thick dark
+// outline, a few detail lines and a happy face. kind: 0 brain, 1 lungs, 2 heart, 3 liver, 4 gut.
+function makeOrgan(kind) {
+  const W = 40, c = mk(W, W), g = c.getContext('2d');
+  const ell = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+  const cap = (x, y, x0, y0, x1, y1, r) => {   // a thick line segment
+    const dx = x1 - x0, dy = y1 - y0, t = clamp01(((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy || 1));
+    return Math.hypot(x - (x0 + dx * t), y - (y0 + dy * t)) <= r;
+  };
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const O = [
+    { body: '#f59ab8', light: '#ffd0e0', dark: '#d0668c', line: '#b8456e', inside: (x, y) => { const a = Math.atan2(y - 17, x - 20); return ell(x, y, 20, 17, 17 * (1 + 0.06 * Math.cos(7 * a)), 13.5 * (1 + 0.06 * Math.cos(7 * a))) || cap(x, y, 22, 28, 24, 35, 3); }, face: [14, 26, 17, 23] },
+    { body: '#f27a90', light: '#ffc0c8', dark: '#c64a64', line: '#a8344e', inside: (x, y) => ell(x, y, 12, 23, 9.5, 13) || ell(x, y, 28, 23, 9.5, 13) || cap(x, y, 20, 3, 20, 14, 2.6), face: [14, 26, 21, 27] },
+    { body: '#e8404e', light: '#ff9098', dark: '#b02034', line: '#8a1428', inside: (x, y) => { const u = (x - 20) / 13.5, v = -(y - 21) / 13.5 + 0.12; return (u * u + v * v - 1) ** 3 - u * u * v ** 3 <= 0 || cap(x, y, 16, 8, 14, 2, 2.2) || cap(x, y, 24, 8, 27, 2, 2.2); }, face: [15, 25, 18, 24] },
+    { body: '#c8683c', light: '#f0a070', dark: '#8c3e22', line: '#6a2a14', inside: (x, y) => (ell(x, y, 17, 20, 16, 11) || ell(x, y, 28, 24, 9, 6.5)) && !ell(x, y, 21, 32, 3.8, 4.4) || ell(x, y, 13, 14, 9, 7) || ell(x, y, 29, 31, 3, 3.4), face: [12, 22, 19, 25] },
+    { body: '#f4a0a4', light: '#ffd2d4', dark: '#d06678', line: '#a8404e', inside: (x, y) => cap(x, y, 8, 11, 32, 11, 4.8) || cap(x, y, 32, 11, 32, 20, 4.8) || cap(x, y, 32, 20, 8, 20, 4.8) || cap(x, y, 8, 20, 8, 29, 4.8) || cap(x, y, 8, 29, 32, 29, 4.8), face: [15, 25, 18, 23] },
+  ][kind];
+  const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < W && O.inside(x + 0.5, y + 0.5);
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+    if (!inside(x, y)) continue;
+    const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+    const v = (-(x - 20) * 0.6 - (y - 20) * 0.8) / 16;
+    px(g, x, y, edge ? '#3a0f1c' : v > 0.45 ? O.light : v < -0.3 ? O.dark : O.body);
+  }
+  const line = (x0, y0, x1, y1) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i <= n; i++) { const x = Math.round(x0 + (x1 - x0) * i / (n || 1)), y = Math.round(y0 + (y1 - y0) * i / (n || 1)); if (inside(x, y) && inside(x - 1, y) && inside(x + 1, y) && inside(x, y - 1)) px(g, x, y, O.line); } };
+  if (kind === 0) {   // brain: the fold between the halves and wrinkles
+    line(20, 5, 20, 12); line(20, 12, 18, 15);
+    for (const [x, y] of [[9, 11], [10, 18], [27, 10], [28, 17], [16, 9], [24, 14]]) { line(x, y, x + 3, y + 1); line(x + 3, y + 1, x + 4, y - 1); }
+  } else if (kind === 1) {   // lungs: the airways branch into each lobe
+    line(20, 13, 13, 18); line(13, 18, 10, 24); line(20, 13, 27, 18); line(27, 18, 30, 24); line(13, 18, 15, 29); line(27, 18, 25, 29); line(20, 29, 20, 36);
+  } else if (kind === 2) {   // heart: a shine
+    for (const [x, y, w] of [[10, 10, 3], [9, 13, 2], [11, 8, 2]]) px(g, x, y, '#ffe0e4', w, 1);
+  } else if (kind === 3) {   // liver: the gallbladder and a lobe line
+    px(g, 28, 30, '#4aa84a', 2, 2); px(g, 28, 30, '#9ae08a'); line(24, 14, 31, 23);
+  } else {   // gut: folds across the tube
+    for (let x = 6; x <= 28; x++) px(g, x, 15, O.line);   // the tube doubles back on itself: a seam between the coils, open at the turns
+    for (let x = 12; x <= 34; x++) px(g, x, 24, O.line);
+    for (const x of [13, 19, 25, 31]) { line(x, 8, x, 10); line(x, 31, x, 33); }
+  }
+  // the happy face: big shiny eyes and a smile
+  const [ex1, ex2, ey, my] = O.face;
+  for (const ex of [ex1, ex2]) { px(g, ex - 1, ey - 2, '#3a0f1c', 4, 6); px(g, ex, ey - 1, '#fff', 2, 4); px(g, ex, ey + 1, '#2a0a14', 2, 2); px(g, ex, ey - 1, '#cfe8ff'); }
+  const mx = Math.round((ex1 + ex2) / 2);
+  px(g, mx - 2, my, '#3a0f1c', 5, 1); px(g, mx - 3, my - 1, '#3a0f1c'); px(g, mx + 3, my - 1, '#3a0f1c'); px(g, mx - 1, my + 1, '#c0405a', 3, 1);
+  return c;
+}
+
 // the Man Flu boss: huge, spiky, angry yellow slit eyes, running red nose and a toothy snarl
 function makeManFlu() {
   const c = makeBlob({ r: 22, body: '#a8c83a', light: '#d8f060', dark: '#6a8a1c', outline: '#26340a', spikeColor: '#ffe870', spikes: 16, spikeLen: 6, spots: true });
@@ -373,18 +420,11 @@ function makeBoss(o) {
   SPR.ally = makeFighter('#3fd6a6');
   SPR.player2 = makeFighter('#ffa030');
 
-  // body organs: healthy (pink, calm) and infected (sickly green, spiky)
-  const defs = [
-    ['#f0a0c0', '#ffd0e0', '#c06890', '#a03060'],  // brain
-    ['#f08a9a', '#ffc0c8', '#c0586a', '#b02848'],  // lungs
-    ['#e0404e', '#ff8088', '#a02030', '#701020'],  // heart
-    ['#c06a40', '#e8996a', '#8a4428', '#5a2410'],  // liver
-    ['#f0b060', '#ffd898', '#c08038', '#a05820'],  // gut
-  ];
-  defs.forEach(([body, light, dark, nuc]) => {
-    SPR.organ.push(makeBlob({ r: 18, body, light, dark, outline: '#3a0f1c', nucleus: nuc, nr: 5, nx: 3, ny: 2, spots: true }));
+  // body organs: healthy ones are cartoon versions of the real thing (brain, lungs, heart, liver, gut), infected ones are sickly green and spiky
+  for (let i = 0; i < 5; i++) {
+    SPR.organ.push(makeOrgan(i));
     SPR.organInf.push(makeBlob({ r: 18, body: '#6faa3a', light: '#a8d860', dark: '#3f6a22', outline: '#16300e', spikes: 14, spikeLen: 4, spikeColor: '#e8ff7a', nucleus: '#2a4a14', nr: 4, nx: 3, ny: 2, face: true, spots: true }));
-  });
+  }
 
   SPR.gem = fromRows(['..c..', '.cwc.', 'cwwwc', '.cwc.', '..c..'], { c: '#38b8ff', w: '#d8f4ff' });
   SPR.shot = fromRows(['.ccc.', 'cwwwc', 'cwwwc', 'cwwwc', '.ccc.'], { c: '#38b8ff', w: '#ffffff' });

@@ -48,7 +48,7 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
   dark and you lose. It has a longer grace period and a few on-screen tips.
 - **Lungs** (5 minutes) - the inside of the lungs. Nine **air sacs** are scattered around; they start open and
   **saboteur** viruses (magenta) clog them, one step per lash: open -> clogged -> collapsed. Poke a clogged sac's
-  weak spot to repair one step (repairing is the player's job; allies hunt saboteurs and fight instead). Fewer open sacs means less oxygen: you move slower and shake off
+  weak spot to repair one step (repairing is the player's job; allies hunt saboteurs and fight instead, but they can't hurt or shove one that is mid-hack: only you can stop it). Fewer open sacs means less oxygen: you move slower and shake off
   infection less. If oxygen stays near zero for 15 seconds the lungs collapse and you lose.
   The lungs also **breathe**: inhale pulls everything up toward the trachea, exhale pushes it back down.
   Sick (clogged or collapsed) sacs lob sticky **slime** like the infected lungs in Classic and breed little **slime

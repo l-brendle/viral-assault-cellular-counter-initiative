@@ -630,7 +630,7 @@ function chooseTarget(u) {
   }
   if (G.fix.length) {   // allies go for saboteurs first: they are what wrecks the level
     let sab = null, sd = 170;
-    for (const v of G.units) if (v.team === 'v' && v.type === 'saboteur' && !v.dead) { const d = dist(u, v); if (d < sd) { sd = d; sab = v; } }
+    for (const v of G.units) if (v.team === 'v' && v.type === 'saboteur' && !v.dead && !v.hack) { const d = dist(u, v); if (d < sd) { sd = d; sab = v; } }
     if (sab) return sab;
   }
   const e = nearestEnemy(u, 3);
@@ -1104,7 +1104,8 @@ function heartStep(dt, alive, phase) {
   }
 }
 
-function strikeUnit(a, b) { a.atkCd = 0.7 + Math.random() * 0.2; damageUnit(b, a.dmg); }
+const hackingFoe = (a, b) => a.team === 'i' && !a.player && b.team === 'v' && !!b.hack;   // a saboteur mid-hack is untouchable for allies
+function strikeUnit(a, b) { if (hackingFoe(a, b)) { a.atkCd = 0.3; return; } a.atkCd = 0.7 + Math.random() * 0.2; damageUnit(b, a.dmg); }
 function strikeOrgan(a, o) { a.atkCd = 0.8; hurtOrgan(o, a.dmg * 0.4); }
 
 // Units (viruses AND allies) actively try to turn the other side: when their cooldown is up they lash their tail at the
@@ -1118,7 +1119,7 @@ function lashTarget(u, organsOnly) {
     const cx = Math.floor(u.x / CFG.CELL), cy = Math.floor(u.y / CFG.CELL);
     for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
       const cell = grid[(cy + oy) * gw + cx + ox];
-      if (cell) for (const n of cell) if (n.team === foe && !n.dead && n.cvT <= 0 && !n.boss) test(n);
+      if (cell) for (const n of cell) if (n.team === foe && !n.dead && n.cvT <= 0 && !n.boss && !hackingFoe(u, n)) test(n);
     }
   }
   for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);
@@ -1295,6 +1296,7 @@ function update(dt) {
         if (n.id <= u.id || n.dead || u.dead) continue;
         const ddx = n.x - u.x, ddy = n.y - u.y, d = Math.hypot(ddx, ddy) || 0.01, minD = u.r + n.r;
         if (d >= minD) continue;
+        if (u.team !== n.team && (hackingFoe(u, n) || hackingFoe(n, u))) continue;   // allies can neither hit nor shove a saboteur that is hacking
         const push = (minD - d) * (u.team === n.team ? 0.4 : 0.2) / d;
         u.x -= ddx * push; u.y -= ddy * push; n.x += ddx * push; n.y += ddy * push;
         if (u.team !== n.team) {
