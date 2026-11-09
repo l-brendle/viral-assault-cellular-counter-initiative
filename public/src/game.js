@@ -383,7 +383,7 @@ let G, S, players, organs, choices = [], cam = { x: 0, y: 0 };
 
 // player settings (kept in localStorage): auto level-up picks upgrades by itself so play is never interrupted,
 // auto fire is whether shooting starts switched on (F still toggles it during play)
-const settings = (() => { try { return { autoLevel: false, autoFire: true, lang: 'en', ...JSON.parse(localStorage.getItem('vaccine.settings') || '{}') }; } catch (e) { return { autoLevel: false, autoFire: true, lang: 'en' }; } })();
+const settings = (() => { try { return { autoLevel: false, autoFire: true, pet: true, lang: 'en', ...JSON.parse(localStorage.getItem('vaccine.settings') || '{}') }; } catch (e) { return { autoLevel: false, autoFire: true, pet: true, lang: 'en' }; } })();
 setLang(settings.lang);
 function saveSettings() { try { localStorage.setItem('vaccine.settings', JSON.stringify(settings)); } catch (e) { /* private mode */ } }
 // cross-level progression: beating a level unlocks a power that can then show up in the level-up choices (kept in localStorage)
@@ -421,7 +421,7 @@ function newGame(co) {
   // team-wide progression: one level, one XP bar, one set of upgrades shared by everybody
   S = { level: 1, xp: 0, next: 8, res: 0, scale: 1, speed: 72, fireRate: 3, shots: 1, dmg: 12, magnet: 36, regen: 1, reach: 52, shoot: false, up: {} };
   players = coop ? [mkPlayer(0, CFG.W / 2 - 16, 600), mkPlayer(1, CFG.W / 2 + 16, 600)] : [mkPlayer(0, CFG.W / 2, 600)];
-  G.pet = hasPet ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null;
+  G.pet = hasPet && settings.pet ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null;
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
     weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
@@ -1513,7 +1513,7 @@ function cineStep(dt) {
   }
   if (c.t >= 3.4 && !c.done) {
     c.done = true;
-    if (u) { burst(u.x, u.y, '#ff9ac8', 24, 70); G.pet = { x: u.x, y: u.y, vx: 0, vy: 0 }; G.units = G.units.filter(x => x !== u); }
+    if (u) { burst(u.x, u.y, '#ff9ac8', 24, 70); G.pet = settings.pet ? { x: u.x, y: u.y, vx: 0, vy: 0 } : null; G.units = G.units.filter(x => x !== u); }
     sfx('conv', 600, 0.4, 'sine', 0.05, 500); G.shake = 0;
     say(hasPet ? 'MAN FLU IS YOUR FRIEND AGAIN!' : 'MAN FLU IS NOW YOUR PET! IT FOLLOWS YOU FROM NOW ON'); G.msgT = 6;
     hasPet = true; try { localStorage.setItem('vaccine.pet', '1'); } catch (e) { /* private mode */ }
@@ -2452,11 +2452,12 @@ function drawLevelSelect() {
 const SETTING_DEFS = [
   { key: 'autoLevel', name: 'AUTO LEVEL-UP', info: 'PICKS UPGRADES FOR YOU SO THE GAME NEVER STOPS. THE SHOOTING UNLOCK COMES FIRST' },
   { key: 'autoFire', name: 'AUTO FIRE', info: 'ON: SHOOTS BY ITSELF, F TOGGLES. OFF: HOLD FIRE TO SHOOT (F, RIGHT CLICK)' },
+  { key: 'pet', name: 'PET', info: 'THE MAN FLU PET THAT FOLLOWS YOU' },
   { key: 'lang', name: 'LANGUAGE', info: 'CHANGE THE GAME LANGUAGE' },
 ];
 const settingRows = () => {
-  const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 34 : 40;
-  return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 34 : 50) + i * (h + 6), w, h }));
+  const w = Math.min(VIEW_W - 24, 330), x = VIEW_W / 2 - w / 2, h = VIEW_H < 220 ? 32 : 34;
+  return SETTING_DEFS.map((d, i) => ({ x, y: (VIEW_H < 220 ? 21 : 38) + i * (h + (VIEW_H < 220 ? 1 : 5)), w, h }));
 };
 function settingsBack() { if (pauseSettings) pauseSettings = false; else state = 'title'; }
 function settingsTap() {
@@ -2470,9 +2471,9 @@ function settingsTap() {
 function settingsKey(k) {
   if (k === 'escape' || k === 'enter' || k === ' ' || k === 's') settingsBack();
   else if (k === '1') toggleSetting(0); else if (k === '2') toggleSetting(1);
-  else if (k === '3' || k === 'arrowright') toggleSetting(2, 1); else if (k === 'arrowleft') toggleSetting(2, -1);
+  else if (k === '3') toggleSetting(2); else if (k === '4' || k === 'arrowright') toggleSetting(3, 1); else if (k === 'arrowleft') toggleSetting(3, -1);
 }
-function toggleSetting(i, dir = 1) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + dir + LANGS.length) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
+function toggleSetting(i, dir = 1) { const d = SETTING_DEFS[i]; if (!d) return; if (d.key === 'lang') { settings.lang = LANGS[(LANG + dir + LANGS.length) % LANGS.length].code; setLang(settings.lang); textCache.clear(); } else settings[d.key] = !settings[d.key]; if (d.key === 'pet' && G && !isGuest()) G.pet = settings.pet && hasPet && state !== 'title' ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null; saveSettings(); sfx('pick', 600, 0.08, 'square', 0.03, 200); }
 // the language row cycles with arrows: [<] NAME [>] at the right end of the row (click either arrow, or use the left / right keys)
 const langArrows = r => ({ prev: { x: r.x + r.w - 92, y: r.y, w: 52, h: 14 }, next: { x: r.x + r.w - 40, y: r.y, w: 40, h: 14 }, mid: r.x + r.w - 6 - 12 - 24 });
 function drawSettingsMenu() {
