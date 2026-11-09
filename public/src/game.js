@@ -1127,7 +1127,7 @@ function lashTarget(u, organsOnly) {
       if (cell) for (const n of cell) if (n.team === foe && !n.dead && n.cvT <= 0 && !n.boss && !hackingFoe(u, n)) test(n);
     }
   }
-  for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);
+  if (u.team === 'v') for (const o of organs) if (o.team === foe && o.cvT <= 0 && (!organsOnly || o.exposed)) test(o);   // allies never cure organs: only the player does
   return best;
 }
 
