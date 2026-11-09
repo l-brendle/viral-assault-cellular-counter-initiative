@@ -423,11 +423,11 @@ function newGame(co) {
   players = coop ? [mkPlayer(0, CFG.W / 2 - 16, 600), mkPlayer(1, CFG.W / 2 + 16, 600)] : [mkPlayer(0, CFG.W / 2, 600)];
   G.pet = hasPet && settings.pet ? { x: players[0].x - 14, y: players[0].y + 8, vx: 0, vy: 0 } : null;
   organs = lvKey !== 'classic' ? [] : ORGANS.map((d, i) => ({ ...d, i, team: 'i', hp: 150, maxHp: 150, r: 18, weakA: rand(0, 6.28),
-    weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0 }));
+    weakS: rand(0.25, 0.45), arc: 0.28, spawnT: 0, spawnMax: 0, cvT: 0, flash: 0, hackP: 0, hackN: 0, sp: 0 }));
   organs.forEach(o => { o.spawnT = o.spawnMax = rand(6, 12); });
   G.fix = (lvl().fix || []).map(([x, y, kind = 'sac'], i) => ({ fix: true, kind, i, x, y, r: 15, st: 0, cd: 0, weakA: rand(0, 6.283), weakS: rand(0.3, 0.5), hackP: 0, hackN: 0 }));
   G.edges = lvl().web || [];   // brain: neuron lanes between the synapses (decoration: they carry the data-flow pulses)
-  G.sabT = 20 * ease('sab'); G.hintI = 0;
+  G.sabT = (organs.length ? 40 : 20) * ease('sab'); G.hintI = 0;
   if (lvl().intro) say(lvl().intro);
   updateCam();
 }
@@ -618,7 +618,12 @@ function nearestFix(u, ok, rad) {
 function chooseTarget(u) {
   if (u.boss) return nearestPlayer(u);   // Man Flu only wants you
   if (u.team === 'v') {
-    if (u.type === 'saboteur') { const f = nearestFix(u, canBreak, 1e9); if (f) return f; }
+    if (u.type === 'saboteur') {
+      const f = nearestFix(u, canBreak, 1e9); if (f) return f;
+      let ob = null, od = 1e9;   // Classic: the organs themselves are what they hack
+      for (const o of organs) if (o.team === 'i' && o.cvT <= 0) { const d = dist(u, o); if (d < od) { od = d; ob = o; } }
+      if (ob) return ob;
+    }
     const np = nearestPlayer(u);
     if (np && dist(u, np) < 90) return np;   // a player in the open is the juiciest target
     const e = nearestEnemy(u, 2);
@@ -628,7 +633,7 @@ function chooseTarget(u) {
     for (const o of organs) if (o.team === 'i') { const d = dist(u, o); if (d < bd) { bd = d; best = o; } }
     return best || np;
   }
-  if (G.fix.length) {   // allies go for saboteurs first: they are what wrecks the level
+  if (G.fix.length || organs.length) {   // allies go for saboteurs first: they are what wrecks the level
     let sab = null, sd = 170;
     for (const v of G.units) if (v.team === 'v' && v.type === 'saboteur' && !v.dead && !v.hack) { const d = dist(u, v); if (d < sd) { sd = d; sab = v; } }
     if (sab) return sab;
@@ -1223,13 +1228,19 @@ function update(dt) {
   // ---- organs
   for (const o of organs) {
     o.weakA += o.weakS * dt; o.cvT -= dt; o.flash -= dt; o.spawnT -= dt; o.stunT = (o.stunT || 0) - dt;
+    if (o.hackN > 0 && o.team === 'i' && o.cvT <= 0) {   // saboteurs linked to a healthy organ hack it; one that finishes infects it
+      o.hackP += dt * (1 + 0.6 * (o.hackN - 1)) / HACK_T;
+      if (!o.hacking) { o.hacking = true; sfx('charge', 330, 0.5, 'square', 0.03, -200); }
+      if (o.hackP >= 1) { o.hackP = 0; o.hacking = false; convertOrgan(o); }
+    } else { o.hacking = false; o.hackP = Math.max(0, o.hackP - dt * 0.25); }
+    o.hackN = 0;
     if (o.team === 'i') { // healthy organs regenerate and zap nearby viruses
       o.hp = Math.min(o.maxHp, o.hp + 3 * dt);
       if (o.exposed && o.hp > 30) o.exposed = false;
       o.zapT = (o.zapT || 0) - dt;
       if (o.zapT <= 0) {
         let best = null, bd = 85;
-        for (const u of G.units) if (u.team === 'v' && !u.dead) { const d = dist(u, o); if (d < bd) { bd = d; best = u; } }
+        for (const u of G.units) if (u.team === 'v' && !u.dead && !u.hack) { const d = dist(u, o); if (d < bd) { bd = d; best = u; } }   // a hacking saboteur is shielded from the organ's zaps too
         if (best) {
           o.zapT = 1.1; damageUnit(best, 7); if (evq) evq.push(['z', Math.round(o.x), Math.round(o.y), Math.round(best.x), Math.round(best.y)]);
           for (let i = 1; i < 6; i++) G.parts.push({ x: o.x + (best.x - o.x) * i / 6, y: o.y + (best.y - o.y) * i / 6, vx: 0, vy: 0, life: 0.15, max: 0.15, col: '#bfe8ff', sz: 1 });
@@ -1242,6 +1253,15 @@ function update(dt) {
     }
   }
 
+  if (organs.length) {   // Classic: saboteurs come to hack the healthy organs
+    G.sabT -= dt;
+    if (G.sabT <= 0 && organs.some(o => o.team === 'i')) {
+      G.sabT = Math.max(10, 30 - G.t / 12) * ease('sab') * rand(0.8, 1.2) / (players.length > 1 ? 1.4 : 1);
+      const n = 1 + (G.t > 150 ? 1 : 0) + (G.t > 270 ? 1 : 0);
+      for (let i = 0; i < n; i++) spawnVirus('saboteur');
+      if (!G.sabSaid) { G.sabSaid = true; say('SABOTEURS! THEY HACK AND INFECT THE ORGANS'); }
+    }
+  }
   hazardsStep(dt, alive);
   fixStep(dt, alive);
   bossStep(dt, alive);
@@ -1268,7 +1288,7 @@ function update(dt) {
     }
     if (u.tail) { tailStep(u, dt, 58, u.team === 'v' ? 'i' : 'v'); dx = 0; dy = 0; }   // standing still while the tail lashes
     u.hack = null;   // saboteurs stop next to a fixable and hack it: they stay linked, and it only flips if they survive
-    if (u.type === 'saboteur' && u.team === 'v' && u.tgt && u.tgt.fix && canBreak(u.tgt) && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < HACK_R) { u.hack = u.tgt; u.tgt.hackN++; dx = 0; dy = 0; }
+    if (u.type === 'saboteur' && u.team === 'v' && u.tgt && (u.tgt.fix ? canBreak(u.tgt) : isOrgan(u.tgt) && u.tgt.team === 'i') && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < HACK_R) { u.hack = u.tgt; u.tgt.hackN++; dx = 0; dy = 0; }
     if (u.stuckT > 0 || u.morph) { dx = 0; dy = 0; u.vx = u.vy = 0; }       // frozen in slime (or busy transforming)
     const kk = Math.min(1, 6 * dt);
     u.vx += (dx * u.speed - u.vx) * kk; u.vy += (dy * u.speed - u.vy) * kk;
@@ -1903,6 +1923,19 @@ function render() {
   ctx.beginPath(); ctx.rect(-cam.x + shx, -cam.y + shy, CFG.W, CFG.H); ctx.clip();
   const bx = Math.floor(cam.x / 64) * 64, by = Math.floor(cam.y / 64) * 64;
   for (let y = by; y < cam.y + VIEW_H; y += 64) for (let x = bx; x < cam.x + VIEW_W; x += 64) ctx.drawImage(SPR[lvl().bg], x - cam.x + shx, y - cam.y + shy);
+  for (const o of organs) {   // Classic: the green creeps outward from an infected organ (and slowly recedes once it is cured)
+    const dg = o.spT == null ? 0 : G.t - o.spT; o.spT = G.t;
+    o.sp = dg < 0 ? 0 : o.team === 'v' ? Math.min(1, (o.sp || 0) + dg / 100) : Math.max(0, (o.sp || 0) - dg / 8);
+    if (o.sp <= 0.001) continue;
+    const R = 34 + 200 * Math.sqrt(o.sp), pulse = 0.85 + 0.15 * Math.sin(G.t * 1.3 + o.i);
+    for (let k = 0; k < 9; k++) {
+      const f = ((o.i * 7 + k * 5) % 9) / 9, a = o.i * 2.1 + k * 2.4 + Math.sin(G.t * 0.3 + k) * 0.08, dd = R * (k ? 0.35 + 0.4 * f : 0), rr = R * (k ? 0.38 + 0.2 * f : 0.7);
+      const gx = o.x + Math.cos(a) * dd - cam.x + shx, gy = o.y + Math.sin(a) * dd - cam.y + shy;
+      const gr = ctx.createRadialGradient(gx, gy, rr * 0.1, gx, gy, rr);
+      gr.addColorStop(0, 'rgba(120,210,60,' + (0.34 * pulse) + ')'); gr.addColorStop(0.65, 'rgba(90,170,40,' + (0.16 * pulse) + ')'); gr.addColorStop(1, 'rgba(70,140,30,0)');
+      ctx.fillStyle = gr; ctx.fillRect(gx - rr, gy - rr, rr * 2, rr * 2);
+    }
+  }
   ctx.restore();
   ctx.strokeStyle = lvl().edge; ctx.lineWidth = 2; ctx.strokeRect(-cam.x + shx - 1, -cam.y + shy - 1, CFG.W + 2, CFG.H + 2);
 
@@ -2005,6 +2038,13 @@ function render() {
     sprite(o.flash > 0 ? tinted(inf ? SPR.organInf[o.i] : SPR.organ[o.i], '#fff') : (inf ? SPR.organInf[o.i] : SPR.organ[o.i]), o.x, o.y);
     weakGlow(o.x, o.y, o.r, o.weakA, '#fff6a0', inf, inf && nearSpot(o));
     if (inf && nearSpot(o)) bodyRing(o.x, o.y, o.r + 4);
+    if (!inf && (o.hackP > 0.01 || o.hackN > 0 || o.hacking)) {   // a saboteur is hacking this organ: alarm ring, progress arc, percentage
+      const hot = o.hackN > 0 || o.hacking, pu = 0.5 + 0.5 * Math.sin(G.t * 14), ox = o.x - cam.x + shx, oy = o.y - cam.y + shy;
+      if (hot) { ctx.strokeStyle = 'rgba(255,60,200,' + (0.3 + 0.5 * pu) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ox, oy, 30 + 3 * pu, 0, 6.283); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(ox, oy, 25, 0, 6.283); ctx.stroke();
+      ctx.strokeStyle = hot ? '#ff40d0' : '#a04080'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ox, oy, 25, -1.5708, -1.5708 + 6.283 * clamp(o.hackP, 0, 1)); ctx.stroke();
+      if (hot) drawText('HACKING ' + Math.round(o.hackP * 100) + '%', ox, oy - 44, Math.floor(G.t * 8) % 2 ? '#ffffff' : '#ff60e0', 1, 'c');
+    }
     // hp bar
     const bxx = Math.round(o.x - 12 - cam.x + shx), byy = Math.round(o.y + 24 - cam.y + shy);
     rect(bxx - 1, byy - 1, 26, 4, '#000', 0.7);
@@ -2267,6 +2307,12 @@ function drawHud() {
       drawText(txt, VIEW_W / 2, 41, '#fff', 1, 'c');
     }
   }
+  const hackedO = organs.filter(o => o.team === 'i' && (o.hackN > 0 || o.hacking));
+  if (hackedO.length) {   // Classic: loud banner while saboteurs hack an organ
+    const top = hackedO.reduce((a, b) => b.hackP > a.hackP ? b : a), txt = '! ' + tr(top.tag) + ' ' + tr('UNDER ATTACK') + (hackedO.length > 1 ? ' +' + (hackedO.length - 1) : '') + ' !', fl = Math.floor(G.t * 5) % 2;
+    rect(VIEW_W / 2 - (txt.length * FONT_ADV) / 2 - 5, 39, txt.length * FONT_ADV + 10, FONT_H + 4, fl ? '#a01880' : '#400a38', 0.9);
+    drawText(txt, VIEW_W / 2, 41, '#fff', 1, 'c');
+  }
   const boss = G.units.find(u => u.boss && !u.dead);
   if (boss) {   // boss health bar along the bottom of the screen
     const w = Math.min(200, VIEW_W - 40), x = VIEW_W / 2 - w / 2, y = VIEW_H - 32, fr = clamp(boss.hpF !== undefined ? boss.hpF : boss.hp / boss.maxHp, 0, 1), fl = boss.morph || boss.morphK > 0;
@@ -2304,6 +2350,7 @@ function drawHud() {
   }
   // offscreen arrows: infected organs (green) and downed players (to revive)
   const marks = organs.filter(o => o.team === 'v').map(o => ({ x: o.x, y: o.y, tag: tr(o.tag), col: '#9ae05a', tc: '#b8f070' }))
+    .concat(organs.filter(o => o.team === 'i' && (o.hackN > 0 || o.hacking || o.hackP > 0.01)).map(o => ({ x: o.x, y: o.y, tag: tr(o.tag), col: '#ff40d0', tc: '#ff90e8', hot: o.hacking, pct: Math.round(o.hackP * 100) })))
     .concat(G.fix.filter(f => f.st > 0 || f.hackN > 0).map(f => ({ x: f.x, y: f.y, tag: tr(fixTag(f)), col: f.hackN > 0 ? '#ff40d0' : f.st > 1 ? '#ff5a4a' : '#ffd060', tc: f.hackN > 0 ? '#ff90e8' : f.st > 1 ? '#ff9a8a' : '#ffd88a', hot: f.hackN > 0, lost: f.st > 1, pct: f.hackN > 0 ? Math.round(f.hackP * 100) : -1 })))
     .concat(players.filter(p => p.down).map(p => ({ x: p.x, y: p.y, tag: 'P' + (p.idx + 1), col: '#7fffd0', tc: '#7fffd0' })));
   for (const o of marks) {
@@ -2678,8 +2725,8 @@ function hostSend(dt) {
   relay({ k: 'snap', mf: settings.autoFire ? 0 : 1, lv: lvKey, cp: camp ? [camp.i] : 0, ph: G.phase, sf: r1(G.suffT), cg: G.cough ? [r2(G.cough.t), G.cough.warn] : 0, fx: G.fix.map(f => [f.st, r2(f.weakA), r1(f.spawnT || 0), r1(f.spawnMax || 0), r2(f.hackP), f.hackN, r1(f.allyT || 0), f.allyMax || 0]), st: state, t: r2(G.t), kills: G.kills, conv: G.conv, msg: G.msg, msgT: r1(G.msgT), sh: r1(G.shake), res: G.result, why: G.reason,
     S, ch: choices.map(u => u.id),
     pl: players.map(p => [r1(p.x), r1(p.y), r1(p.infection), p.down ? 1 : 0, r1(p.reviveT), r2(p.aim), p.flash > 0 ? 1 : 0, r1(p.vx), r1(p.vy), p.tail ? [r1(spotOf(p.tail.ref).x), r1(spotOf(p.tail.ref).y), r2(p.tail.t)] : 0, p.autoFire ? 1 : 0, r2(p.mass), r2(p.splitting), r2(p.splitBase), p.stuckT > 0 ? 1 : 0, [r1(p.fx.speed), r1(p.fx.slow), r1(p.fx.shield), r1(p.fx.poke), r1(p.fx.bloat)], r2(Math.max(0, p.pokeCd))]),
-    og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0]),
-    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? u.hack.i : -1, u.morph ? r2(u.morph.t / MORPH_T) : -1, u.boss ? r2(u.hp / u.maxHp) : -1, u.boss ? r2(Math.max(0, u.shotT || 0)) : -1]),
+    og: organs.map(o => [o.team === 'v' ? 1 : 0, r1(o.hp), r1(o.spawnT), r1(o.spawnMax), r2(o.weakA), o.flash > 0 ? 1 : 0, r2(o.hackP), o.hackN > 0 || o.hacking ? 1 : 0]),
+    un: G.units.map(u => [u.id, u.team === 'v' ? 1 : 0, TYPE_IDS.indexOf(u.type), r1(u.x), r1(u.y), r2(u.weakA), u.flash > 0 ? 1 : 0, u.tail ? [r1(spotOf(u.tail.ref).x), r1(spotOf(u.tail.ref).y), r2(u.tail.t)] : 0, u.stuckT > 0 ? 1 : 0, u.hack ? (isOrgan(u.hack) ? 100 + u.hack.i : u.hack.i) : -1, u.morph ? r2(u.morph.t / MORPH_T) : -1, u.boss ? r2(u.hp / u.maxHp) : -1, u.boss ? r2(Math.max(0, u.shotT || 0)) : -1]),
     pj: G.projs.map(p => [r1(p.x), r1(p.y), Math.round(p.vx), Math.round(p.vy)]),
     gm: G.gems.map(g => [Math.round(g.x), Math.round(g.y)]),
     pb: G.pb.map(b => [r1(b.x), r1(b.y), r2(b.a), r1(b.len), r2(b.t), b.seed, b.pi]), pr: G.pr.map(b => [r1(b.x), r1(b.y), b.s, r1(b.len), r2(b.t), b.pi]), pg: G.pg.map(g => [r1(g.sx), r1(g.sy), r1(g.tx), r1(g.ty), r2(g.t), r2(g.dur), g.pi, r1(g.r)]), ps: G.ps.map(x => [r1(x.x), r1(x.y), r1(x.r), r1(x.life), x.pi]), np: G.newPower || '', ci: G.cine ? r2(G.cine.t) : -1, fp: G.fp.map(b => [b.id, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]), pt: G.pet ? [r1(G.pet.x), r1(G.pet.y)] : 0,
@@ -2713,7 +2760,7 @@ function applySnap(d) {
   G.phase = d.ph; G.suffT = d.sf; G.cough = d.cg ? { t: d.cg[0], warn: d.cg[1] } : null;
   d.og.forEach((a, i) => {
     let o = organs[i];
-    o.team = a[0] ? 'v' : 'i'; o.hp = a[1]; o.spawnT = a[2]; o.spawnMax = a[3]; o.weakA = a[4]; o.flash = a[5] ? 0.1 : -1;
+    o.team = a[0] ? 'v' : 'i'; o.hp = a[1]; o.spawnT = a[2]; o.spawnMax = a[3]; o.weakA = a[4]; o.flash = a[5] ? 0.1 : -1; o.hackP = a[6] || 0; o.hackN = a[7] || 0;
   });
   const seen = new Set(), list = [];
   for (const a of d.un) {
@@ -2721,7 +2768,7 @@ function applySnap(d) {
     const type = TYPE_IDS[a[2]];
     if (!u) { u = { id: a[0], x: a[3], y: a[4], dead: false, born: G.t }; net.units.set(a[0], u); }
     u.team = a[1] ? 'v' : 'i'; u.type = type; u.r = TYPES[type].r; u.tx = a[3]; u.ty = a[4]; u.weakA = a[5]; u.flash = a[6] ? 0.1 : -1;
-    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 0 ? G.fix[a[9]] : null; u.morphK = a[10]; u.boss = !!BOSSES[type]; u.hpF = a[11] >= 0 ? a[11] : undefined; if (u.boss) u.shotT = a[12];
+    u.stuckT = a[8] ? 1 : 0; u.hackG = a[9] >= 100 ? organs[a[9] - 100] : a[9] >= 0 ? G.fix[a[9]] : null; u.morphK = a[10]; u.boss = !!BOSSES[type]; u.hpF = a[11] >= 0 ? a[11] : undefined; if (u.boss) u.shotT = a[12];
     u.tailG = a[7] ? { x: a[7][0], y: a[7][1], t: a[7][2] } : null;
     seen.add(a[0]); list.push(u);
   }

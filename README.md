@@ -37,7 +37,7 @@ Pick the level on the title screen (**L** or the LEVEL button). Online co-op use
 - **Campaign** (default) - Classic, Brain, Lungs, Heart, Stomach, then Bloodstream. Your upgrades and level carry over to the next organ. A win
   takes you on, a loss retries that organ, and the final win starts the campaign again. In online co-op the guest
   follows the host from level to level.
-- **Classic** - defend five organs for 6 minutes (only you can cure an infected organ). It opens the campaign.
+- **Classic** - defend five organs for 6 minutes (only you can cure an infected organ). Saboteurs hack healthy organs (4.5 s, only you can stop them) and the green slowly spreads over the tissue around infected organs. It opens the campaign.
 - **Brain** (5 minutes) - seven synapses linked by neuron lines. Saboteurs jam them (lit -> dim -> dark); poke them
   back. The level is **dark**: only you, your allies and lit synapses give light, so dark synapses leave corners where
   viruses hide. Active (lit) synapses regularly **spark lightning** (a faint line charges for a moment, then the bolt

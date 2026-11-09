@@ -74,7 +74,7 @@ function makeBot(name, seed, extra) {
       // candidate goals: points to walk to, with a value
       const cands = [];
       const oxy = d.oxy(), fixUrgent = G.fix.length && (oxy < 0.9 || G.fix.some(f => f.st === 2));
-      const hunting = G.fix.length && oxy > sk.hunt && viruses.some(u => u.type === 'saboteur');   // while the signal holds, stop the saboteurs before repairing
+      const hunting = (G.fix.length || d.organs.length) && oxy > sk.hunt && viruses.some(u => u.type === 'saboteur');   // while the signal holds, stop the saboteurs before repairing
       for (const f of G.fix) if (f.st > 0) {
         const sp = d.spot(f), dd = Math.hypot(sp.x - P.x, sp.y - P.y);
         const v = sk.fixW * (1 + f.st) * (fixUrgent ? 2.2 : 1) * (1.6 - oxy) / (1 + dd / 220) * (hunting ? 0.25 : 1);
@@ -82,8 +82,8 @@ function makeBot(name, seed, extra) {
       }
       for (const u of viruses) {
         const sp = d.spot(u), dd = Math.hypot(sp.x - P.x, sp.y - P.y);
-        if (dd > sk.chase && !(u.type === 'saboteur' && G.fix.length)) continue;
-        let w = u.type === 'saboteur' ? (G.fix.length ? sk.sabW : 1) : u.type === 'brute' ? 2 : u.type === 'runner' ? 1.4 : 1;
+        if (dd > sk.chase && !(u.type === 'saboteur' && (G.fix.length || d.organs.length))) continue;
+        let w = u.type === 'saboteur' ? (G.fix.length || d.organs.length ? sk.sabW : 1) : u.type === 'brute' ? 2 : u.type === 'runner' ? 1.4 : 1;
         if (d.organs.some(o => o.team === 'i' && Math.hypot(u.x - o.x, u.y - o.y) < 120)) w *= 1.8;   // classic: viruses closing in on a healthy organ
         // approach from behind: a point just past the weak spot, away from the body
         const ox = sp.x - u.x, oy = sp.y - u.y, ol = Math.hypot(ox, oy) || 1;
